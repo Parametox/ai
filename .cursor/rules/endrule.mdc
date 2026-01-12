@@ -1,0 +1,14 @@
+---
+alwaysApply: true
+description: >
+  Aktualizuj dokumentację projektu za każdym razem, gdy w kontekście pojawią się nowe informacje techniczne, funkcjonalne lub biznesowe. 
+  Każda zmiana powinna automatycznie odzwierciedlać aktualny stan wiedzy zespołu.
+dataTypes:
+  separateDocument: true
+  comment: >
+    Wszystkie typy danych związane z projektem powinny być definiowane w osobnym pliku.
+    W dokumentacji głównej należy umieścić odnośnik lub komentarz, który wiąże każdy typ z odpowiednim miejscem użycia.
+example:
+  - step: 'Dodanie nowej funkcji'
+    result: 'Automatyczna aktualizacja dokumentacji z opisem funkcji, a typy parametrów i zwracanych wartości pojawiają się w osobnym pliku data-types.md z komentarzami wskazującymi, gdzie są użyte.'
+---
