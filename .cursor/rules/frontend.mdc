@@ -1,0 +1,5 @@
+---
+globs: *.razor,*.razor.cs,,*.razor.css
+alwaysApply: false
+---
+  We wszystkich plikach frontendowych (*.razor, *.razor.cs, *.razor.css) korzystaj wyłącznie z bibliotek Blazor, MudBlazor, HTML oraz CSS. Kod rozdzielaj na pliki: logika (C#) w *.razor.cs, style w *.razor.css, a markup (HTML + Blazor) w *.razor. Unikaj łączenia logiki, stylów i markupu w jednym pliku.

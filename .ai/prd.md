@@ -24,13 +24,13 @@
 
 11. **Formaty produktów:** Format wybierany przy tworzeniu zlecenia; osobna tabela formatów (CRUD w Panelu Menedżera). Domyślnie 3 formaty: **A6 (10x15 cm)**, **Kwadrat (15x15 cm)**, **A5 (14.8x21 cm)**.
 
-12. **Wysyłka i archiwum:** "Wyślij do klienta" dostępne dopiero, gdy wszystkie batche spełniają warunki zakończenia (w PRD: etap Wysyłka + status Done). Po wysyłce projekt trafia do historii, a na tablicy zostają tylko projekty niewysłane.
+12. **Wysyłka i archiwum:** "Wyślij do klienta" dostępne dopiero, gdy wszystkie batche spełniają warunki zakończenia (w PRD: etap Wysyłka + status Done). Po wysyłce projekt trafia do historii, a na tablicy zostają tylko projekty niewysłane (technicznie: `Project.IsCompleted = true`, opcjonalnie z `CompletedAt/CompletedBy`).
 
 13. **Historia zmian:** Logujemy historię zmian batchy (kto/kiedy + zmiany etapu/statusu).
 
 14. **Użytkownicy startowi:** Bez self-registration; tworzymy skrypt seedujący 2 konta: menedżer (menago/menago) i operator (operator/operator).
 
-15. **Technologia:** .NET, **Blazor Server (SSR)**, komponenty **MudBlazor**, stylowanie Bootstrap, baza **PostgreSQL**, **EF Core Code-First + migracje**, w razie potrzeby **SignalR**, docelowy hosting **Azure**.
+15. **Technologia:** @tech-stack.md
 
 16. **Skalowanie MVP:** Maksymalnie 20 batchy **InProgress** jednocześnie (kontrola przez soft limit + monitoring).
 
@@ -235,15 +235,9 @@
 
 ---
 
-### d) Architektura/stack (podsumowanie)
 
-- **Frontend:** Blazor Server (SSR) + MudBlazor + Bootstrap
-- **Backend:** .NET 8+ (ASP.NET Core)
-- **Database:** PostgreSQL + EF Core Code-First + migracje
-- **Real-time:** SignalR (opcjonalnie)
-- **Hosting:** Azure (App Service + PostgreSQL)
-
----
+// End of Selection
+```
 
 ## Nierozwiązane kwestie
 
@@ -253,9 +247,7 @@
 
 3. **Definicja "Done" vs etap:** Czy batch może mieć status Done zanim osiągnie etap Wysyłka, czy Done oznacza "ukończony etapowo" (Shipping + Done)?
 
-4. **Zasady kasowania batchy po wysyłce:** Czy fizycznie usuwamy rekordy batchy z DB, czy przenosimy do archiwum/soft-delete (wymóg mówi "usuwamy z tablicy"; technicznie lepiej archiwizować)?
-
-5. **Szczegóły dashboardu:** Dokładny zakres danych (np. "ostatnie 10 zakończonych") i sposób liczenia średniego czasu realizacji.
+4. **Szczegóły dashboardu:** Dokładny zakres danych (np. "ostatnie 10 zakończonych") i sposób liczenia średniego czasu realizacji.
 
 ---
 

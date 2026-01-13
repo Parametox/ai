@@ -1,0 +1,16 @@
+---
+globs: *.cs, *.csproj, *.razor, *.xaml, *.fs, *.vb, *.sln
+alwaysApply: false
+---
+- Wersja: Zawsze używaj najnowszej stabilnej wersji języka C# (minimum C#12) oraz .NET 8/9.
+- Modern C#: Stosuj *primary constructors*, *collection expressions* (`[]` zamiast `new List<T>()`) oraz *raw string literals* (`...`).
+- Namespaces: Wyłącznie *file-scoped namespaces*.
+- Nullable Reference Types: Muszą być włączone (`<Nullable>enable</Nullable>`), publiczne metody sprawdzają argumenty pod kątem `null`.
+- Metody asynchroniczne kończą się sufiksem `Async` i propagują `CancellationToken`.
+- DI przez konstruktor, unikać static w warstwie biznesowej/domenowej.
+- Minimal APIs domyślnie w aplikacjach webowych, klasyczne kontrolery tylko przy uzasadnieniu.
+- Obsługa błędów przez Result Pattern (np. FluentResults lub własna klasa Result) — bez wyjątków domenowych.
+- Kod testowalny: każda funkcja ma propozycję testu jednostkowego (xUnit + FluentAssertions, NSubstitute).
+- DRY, refaktoryzacja powtarzalności do metod rozszerzających.
+- Komentarze XML tylko tam, gdzie logika jest nieoczywista.
+- Dokumentacja, kod i modele są AI-First, zoptymalizowane pod szybkie MVP i maksymalną czytelność.
