@@ -5,7 +5,7 @@ Poniżej znajduje się docelowy schemat bazy danych pod **PostgreSQL** dla MVP, 
 ## 1. Lista tabel z kolumnami, typami danych i ograniczeniami
 
 ### 1.1 `product_formats`
-Słownik formatów produktów (CRUD w Panelu Menedżera).
+Słownik formatów produktów (CRUD w Panelu Managera).
 
 - `id` **bigserial** PK
 - `name` **text** NOT NULL
@@ -175,13 +175,13 @@ Zalecane akcje FK:
 
 ## 4. Zasady PostgreSQL (RLS)
 
-- **RLS nie dotyczy** (system single-tenant). Autoryzacja odbywa się na poziomie aplikacji przez **ASP.NET Core Identity** i role (**Menedżer/Operator**).
+- **RLS nie dotyczy** (system single-tenant). Autoryzacja odbywa się na poziomie aplikacji przez **ASP.NET Core Identity** i role (**Manager/Operator**).
 
 ## 5. Dodatkowe uwagi / decyzje projektowe
 
 - **Etapy i statusy**: w DB zastosowano CHECK, a reguły przejść są egzekwowane w logice aplikacji (wymóg: etapy tylko do przodu; statusy zmieniane „o 1 krok”).
 - **Walidacja `batch_split_rules` (bez nakładania zakresów)**:
-  - Minimum: walidacja w aplikacji (Panel Menedżera) przed zapisem.
+  - Minimum: walidacja w aplikacji (Panel Managera) przed zapisem.
   - Opcjonalnie (mocniej, po stronie DB): constraint na range z wykluczeniem nakładania dla aktywnych reguł (wymaga `btree_gist` i użycia `int4range`).
 - **Ukrywanie po wysyłce**: zamiast kasowania, `projects.is_completed=true` + `completed_at` (historia read-only).
 - **N+1 w EF Core**: listy Kanban/Dashboard powinny używać projekcji i `Include` tylko tam, gdzie konieczne; liczniki (`InProgress`) najlepiej liczyć agregacją po indeksie partial.

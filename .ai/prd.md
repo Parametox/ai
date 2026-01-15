@@ -4,9 +4,9 @@
 
 1. **Zakres produktu (MVP):** System do zarządzania produkcją kartek świątecznych w 5 etapach: Projektowanie → Druk → Cięcie → Pakowanie → Wysyłka.
 
-2. **Role i uprawnienia:** Dwie role: **Menedżer** i **Operator**. Tylko Menedżer ma dostęp do **Panelu Menedżera** i może wykonać akcję **"Wyślij do klienta"**.
+2. **Role i uprawnienia:** Dwie role: **Manager** i **Operator**. Tylko Manager ma dostęp do **Panelu Managera** i może wykonać akcję **"Wyślij do klienta"**.
 
-3. **Widoki aplikacji:** Dwie zakładki: **Kanban** oraz **Panel Menedżera** (tylko dla Menedżera).
+3. **Widoki aplikacji:** Dwie zakładki: **Kanban** oraz **Panel Managera** (tylko dla Managera).
 
 4. **UI główne (Kanban):** Prosty widok listy/tabeli batchy, z lookupami/dropdownami do wyboru **statusu** i **etapu**. Batch pokazuje: numer zlecenia, numer batcha, liczbę sztuk, progress bar oraz link do projektu.
 
@@ -20,15 +20,15 @@
 
 9. **Alerty o opóźnieniach:** Nie implementujemy mechanizmu alertów o opóźnieniach w MVP.
 
-10. **Konfiguracja podziału na batche:** W Panelu Menedżera edytowalna tabela reguł: "ilość sztuk w zleceniu → % wielkości batcha" (np. 200 szt. → 30% → batch 60 szt.).
+10. **Konfiguracja podziału na batche:** W Panelu Managera edytowalna tabela reguł: "ilość sztuk w zleceniu → % wielkości batcha" (np. 200 szt. → 30% → batch 60 szt.).
 
-11. **Formaty produktów:** Format wybierany przy tworzeniu zlecenia; osobna tabela formatów (CRUD w Panelu Menedżera). Domyślnie 3 formaty: **A6 (10x15 cm)**, **Kwadrat (15x15 cm)**, **A5 (14.8x21 cm)**.
+11. **Formaty produktów:** Format wybierany przy tworzeniu zlecenia; osobna tabela formatów (CRUD w Panelu Managera). Domyślnie 3 formaty: **A6 (10x15 cm)**, **Kwadrat (15x15 cm)**, **A5 (14.8x21 cm)**.
 
 12. **Wysyłka i archiwum:** "Wyślij do klienta" dostępne dopiero, gdy wszystkie batche spełniają warunki zakończenia (w PRD: etap Wysyłka + status Done). Po wysyłce projekt trafia do historii, a na tablicy zostają tylko projekty niewysłane (technicznie: `Project.IsCompleted = true`, opcjonalnie z `CompletedAt/CompletedBy`).
 
 13. **Historia zmian:** Logujemy historię zmian batchy (kto/kiedy + zmiany etapu/statusu).
 
-14. **Użytkownicy startowi:** Bez self-registration; tworzymy skrypt seedujący 2 konta: menedżer (menago/menago) i operator (operator/operator).
+14. **Użytkownicy startowi:** Bez self-registration; tworzymy skrypt seedujący 2 konta: Manager (menago/menago) i operator (operator/operator).
 
 15. **Technologia:** @tech-stack.md
 
@@ -40,7 +40,7 @@
 
 ## Dopasowane rekomendacje
 
-1. **RBAC (Menedżer/Operator):** Różne uprawnienia i osobny Panel Menedżera.
+1. **RBAC (Manager/Operator):** Różne uprawnienia i osobny Panel Managera.
 
 2. **Prosty UI listy batchy:** Minimalny widok listy z filtrami, dropdownami i progress barem.
 
@@ -50,13 +50,13 @@
 
 5. **Audyt zmian:** Historia zmian batchy (kto/kiedy/co) już w MVP.
 
-6. **Konfiguracja podziału na batche w UI:** Edytowalna tabela reguł w Panelu Menedżera.
+6. **Konfiguracja podziału na batche w UI:** Edytowalna tabela reguł w Panelu Managera.
 
 7. **Formaty produktów jako dane (CRUD):** Nie hardcode — tabela w DB i UI do zarządzania.
 
 8. **Brak rejestracji użytkowników:** Konta seedowane skryptem dla bezpieczeństwa i prostoty.
 
-9. **Dashboard w Panelu Menedżera:** Statystyki operacyjne zgodnie z rekomendacją.
+9. **Dashboard w Panelu Managera:** Statystyki operacyjne zgodnie z rekomendacją.
 
 10. **Soft limit i monitoring:** Zamiast blokad — ostrzeżenia + widoczny licznik (szczególnie dla InProgress).
 
@@ -69,8 +69,8 @@
 ### a) Główne wymagania funkcjonalne produktu
 
 #### Autentykacja i role
-- Logowanie użytkowników, role Menedżer/Operator.
-- Menedżer widzi: Kanban + Panel Menedżera; Operator widzi: tylko Kanban.
+- Logowanie użytkowników, role Manager/Operator.
+- Manager widzi: Kanban + Panel Managera; Operator widzi: tylko Kanban.
 
 #### Zlecenia/projekty
 - Formularz utworzenia zlecenia: liczba sztuk, format produktu (lookup), termin realizacji (walidacje: 1–100000, termin ≥ dziś+7 dni).
@@ -86,10 +86,10 @@
 - Po przekroczeniu: komunikat ostrzegawczy + ikona, bez blokady.
 
 #### Wysyłka
-- "Wyślij do klienta" tylko dla Menedżera i tylko, gdy wszystkie batche spełniają warunek zakończenia (etap Wysyłka + status Done).
+- "Wyślij do klienta" tylko dla Managera i tylko, gdy wszystkie batche spełniają warunek zakończenia (etap Wysyłka + status Done).
 - Po wysyłce: projekt przeniesiony do historii; na tablicy tylko niewysłane projekty.
 
-#### Panel Menedżera
+#### Panel Managera
 - Dashboard metryk (zgodnie z rekomendacją).
 - Konfiguracja batchy (edytowalna tabela progów i %).
 - Formaty produktów (CRUD).
@@ -114,8 +114,8 @@
 
 ---
 
-#### US-002: Utworzenie zlecenia (Menedżer)
-**Jako** Menedżer  
+#### US-002: Utworzenie zlecenia (Manager)
+**Jako** Manager  
 **Chcę** utworzyć zlecenie (ilość, format, termin)  
 **Aby** rozpocząć produkcję
 
@@ -126,7 +126,7 @@
 
 ---
 
-#### US-003: Start batcha (Operator/Menedżer)
+#### US-003: Start batcha (Operator/Manager)
 **Jako** Operator  
 **Chcę** zmienić status batcha z New na InProgress  
 **Aby** rozpocząć pracę nad batchem
@@ -138,7 +138,7 @@
 
 ---
 
-#### US-004: Przesunięcie etapu batcha (Operator/Menedżer)
+#### US-004: Przesunięcie etapu batcha (Operator/Manager)
 **Jako** Operator  
 **Chcę** przesunąć batch do kolejnego etapu  
 **Aby** odzwierciedlić postęp pracy
@@ -150,7 +150,7 @@
 
 ---
 
-#### US-005: Zakończenie batcha (Operator/Menedżer)
+#### US-005: Zakończenie batcha (Operator/Manager)
 **Jako** Operator  
 **Chcę** zmienić status batcha z InProgress na Done  
 **Aby** zakończyć pracę nad batchem
@@ -162,7 +162,7 @@
 
 ---
 
-#### US-006: Podgląd projektu (Operator/Menedżer)
+#### US-006: Podgląd projektu (Operator/Manager)
 **Jako** użytkownik  
 **Chcę** wejść w szczegóły projektu  
 **Aby** zobaczyć wszystkie batche i statystyki
@@ -171,12 +171,12 @@
 - Widoczne wszystkie batche zlecenia
 - Progres projektu (średnia wszystkich batchy)
 - Status gotowości do wysyłki
-- Dla Menedżera: akcje administracyjne (edycja terminu, wysyłka)
+- Dla Managera: akcje administracyjne (edycja terminu, wysyłka)
 
 ---
 
-#### US-007: Wysyłka do klienta (Menedżer)
-**Jako** Menedżer  
+#### US-007: Wysyłka do klienta (Manager)
+**Jako** Manager  
 **Chcę** wysłać zlecenie do klienta  
 **Aby** zamknąć projekt
 
@@ -188,8 +188,8 @@
 
 ---
 
-#### US-008: Konfiguracja reguł batchowania (Menedżer)
-**Jako** Menedżer  
+#### US-008: Konfiguracja reguł batchowania (Manager)
+**Jako** Manager  
 **Chcę** edytować progi i % batchy  
 **Aby** dopasować produkcję do potrzeb
 
@@ -200,8 +200,8 @@
 
 ---
 
-#### US-009: Zarządzanie formatami (Menedżer)
-**Jako** Menedżer  
+#### US-009: Zarządzanie formatami (Manager)
+**Jako** Manager  
 **Chcę** dodawać/edytować formaty  
 **Aby** były dostępne przy tworzeniu zlecenia
 
@@ -212,8 +212,8 @@
 
 ---
 
-#### US-010: Dashboard (Menedżer)
-**Jako** Menedżer  
+#### US-010: Dashboard (Manager)
+**Jako** Manager  
 **Chcę** widzieć metryki produkcji  
 **Aby** zarządzać obciążeniem
 

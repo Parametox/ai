@@ -22,12 +22,12 @@ Repozytorium zawiera na ten moment przede wszystkim **dokumentację i ustalenia*
 
 Produkt wspiera dwa typy użytkowników:
 
-- **Menedżer**: ma dostęp do **Kanban** oraz **Panelu Menedżera** (w tym konfiguracja, dashboard, wysyłka do klienta).
+- **Manager**: ma dostęp do **Kanban** oraz **Panelu Managera** (w tym konfiguracja, dashboard, wysyłka do klienta).
 - **Operator**: ma dostęp do **Kanban** (aktualizacja statusu i etapu batchy).
 
 Główne pojęcia domenowe:
 
-- **Zlecenie/Projekt**: tworzone przez Menedżera (ilość sztuk, format produktu, termin realizacji).
+- **Zlecenie/Projekt**: tworzone przez Managera (ilość sztuk, format produktu, termin realizacji).
 - **Batch**: automatycznie tworzony podział zlecenia; każdy batch ma status, etap produkcji i postęp.
 
 Kluczowe reguły biznesowe (MVP):
@@ -36,7 +36,7 @@ Kluczowe reguły biznesowe (MVP):
 - **Etapy produkcji**: 5 etapów (od Projektowania do Wysyłki)
 - **Zmiana etapu**: tylko „do przodu” (po enumie)
 - **Soft limit 20**: dotyczy wyłącznie liczby batchy w statusie **InProgress** (ostrzeżenie/ikona, bez blokowania)
-- **Wysyłka do klienta**: tylko dla Menedżera i dopiero gdy wszystkie batche spełniają warunek zakończenia (**etap Wysyłka** + **status Done**)
+- **Wysyłka do klienta**: tylko dla Managera i dopiero gdy wszystkie batche spełniają warunek zakończenia (**etap Wysyłka** + **status Done**)
 - **Audyt**: log zmian batchy (kto/kiedy + zmiany statusu/etapu)
 - **Brak self‑registration**: konta startowe seedowane (menago/menago, operator/operator)
 
@@ -46,7 +46,7 @@ Zgodnie z `.ai/tech-stack.md`:
 
 - **Frontend/UI**: **Blazor Server (SSR)** + **MudBlazor**
 - **Backend**: **.NET 8 (ASP.NET Core)** (w tym samym hostcie co UI — jeden projekt na MVP)
-- **Auth/RBAC**: **ASP.NET Core Identity** (cookie auth) + role Menedżer/Operator
+- **Auth/RBAC**: **ASP.NET Core Identity** (cookie auth) + role Manager/Operator
 - **Baza danych / ORM**: **PostgreSQL** + **EF Core (Code‑First)** + migracje
 - **Audyt**: tabela zdarzeń (transakcyjnie razem ze zmianą)
 - **Real-time**: Blazor Server bazuje na SignalR (opcjonalne huby do broadcastu zmian)
@@ -57,6 +57,7 @@ Zgodnie z `.ai/tech-stack.md`:
 ## Uruchomienie lokalnie
 
 Repozytorium zawiera już podstawową strukturę `.NET` oraz **warstwę dostępu do danych** (EF Core + PostgreSQL) z migracjami.
+Kontrakt DTO/Command Models (na potrzeby warstwy serwisów / UI Blazor Server) jest w `src/Types.cs`.
 
 ### Wymagania
 
@@ -127,11 +128,33 @@ dotnet run --project src/DbMigrator
 
 - `KanbanLite.sln` — solucja
 - `src/DataAccess` — encje, `AppDbContext`, migracje
+- `src/Application` — **warstwa aplikacyjna** (serwisy/use case’y in-process), **Result Pattern**, RBAC po stronie serwisu
 - `src/DbMigrator` — minimalny projekt startowy do uruchamiania migracji
+- `tests/KanbanLite.Application.UnitTests` — testy jednostkowe warstwy Application (xUnit + FluentAssertions + NSubstitute)
+
+## Stan implementacji (backend in-process)
+
+**Backend warstwy Application jest zaimplementowany i gotowy do użycia.**
+
+### Zaimplementowane serwisy
+
+- **`BatchService`**: Kanban (projekcja join bez **N+1**), zmiana statusu i etapu (walidacje + audyt transakcyjny + soft limit 20), `GetInProgressCountAsync`.
+- **`ProjectService`**: lista projektów (paginacja + filtrowanie `IsCompleted`), szczegóły projektu (projekcja bez **N+1**), „Wyślij do klienta” (walidacja gotowości + RBAC Manager-only).
+- **`BatchAuditService`**: stronicowany odczyt audytu batcha (RBAC Manager+Operator).
+- **`OrderService`**: tworzenie zlecenia (walidacje + transakcja) + automatyczny projekt i batche wg aktywnej reguły splitu, lista zleceń (filtrowanie po `dueFrom/dueTo` i `q` obejmujące `orderNumber`/`projectNumber`), szczegóły zlecenia.
+- **`ProductFormatService`**: lookup aktywnych formatów (Manager+Operator), zarządzanie formatami (Manager-only: CRUD + deaktywacja).
+- **`BatchSplitRuleService`**: zarządzanie regułami splitu (Manager-only: CRUD + aktywacja/dezaktywacja) + walidacja braku overlapów aktywnych zakresów.
+- **`DashboardService`**: dashboard Managera (agregacje po statusach/etapach na projektach aktywnych) + lista pilnych (due < dziś+7) + ostrzeżenie soft‑limit `InProgress > 20`.
+
+### Rejestracja DI
+
+- **`KanbanLite.Application.DependencyInjection.AddKanbanLiteApplication()`**: rejestruje wszystkie serwisy Application.
+- **Wymagane w hoście**: rejestracja `ICurrentUser` (np. `ClaimsPrincipalCurrentUser` z `IHttpContextAccessor` dla ASP.NET Core/Blazor Server).
+- **Testy jednostkowe**: 24 testy przechodzą (`tests/KanbanLite.Application.UnitTests`).
 
 ## Dostępne skrypty
 
-Na ten moment **brak** zdefiniowanych skryptów (brak `package.json` oraz brak plików projektu `.NET` w repo).
+W repo są skrypty PowerShell w `scripts/` (m.in. przygotowanie lokalnego Postgresa i zastosowanie migracji).
 
 ## Zakres (scope)
 
@@ -143,7 +166,7 @@ Na ten moment **brak** zdefiniowanych skryptów (brak `package.json` oraz brak p
   - liczbą sztuk,
   - progress barem,
   - linkiem do projektu.
-- **Panel Menedżera** (tylko Menedżer):
+- **Panel Managera** (tylko Manager):
   - dashboard metryk operacyjnych,
   - konfiguracja reguł batchowania,
   - CRUD formatów produktów,
@@ -151,7 +174,7 @@ Na ten moment **brak** zdefiniowanych skryptów (brak `package.json` oraz brak p
 
 ### Funkcje (MVP)
 
-- logowanie i RBAC (Menedżer/Operator),
+- logowanie i RBAC (Manager/Operator),
 - tworzenie zlecenia (ilość, format, termin; walidacje: 1–100000, termin ≥ dziś + 7 dni),
 - automatyczny podział zlecenia na batche wg tabeli reguł,
 - zarządzanie batchami (statusy, etapy, postęp),

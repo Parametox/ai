@@ -9,7 +9,72 @@ Jesteś architektem baz danych, którego zadaniem jest stworzenie schematu bazy 
 Jest to dokument wymagań produktu, który określa cechy, funkcjonalności i wymagania projektu.
 
 2. <session_notes>
-{{session-notes}} <- wklej podsumowanie sesji planistycznej
+<conversation_summary>
+<decisions>
+1. System jest single-tenant (jedna organizacja) – brak potrzeby multi-tenant oraz RLS; autoryzacja przez RBAC w aplikacji (role Manager/Operator).
+2. Model domeny: `Order` powstaje po zapisie formularza; na jego podstawie tworzony jest `Project` (proces „Projektowanie” to pierwszy etap kanbana, nie ma osobnej encji „projekt graficzny”).
+3. Relacje: `Order -> Projects` = 1:N (w praktyce zwykle 1 projekt na zlecenie); `Project -> Batches` = 1:N.
+4. Po akcji „Wyślij do klienta” nie usuwamy batchy; projekty mają być ukryte na kanbanie poprzez flagę `Project.IsCompleted = true` (historia jest read-only).
+5. Etapy produkcji (5) przechodzą tylko do przodu; statusy batchy (New/InProgress/Done) można zmieniać wstecz/przód, ale tylko o jeden krok (bez przeskoków) i każda zmiana ma być zapisana.
+6. Limit produkcyjny 20 dotyczy globalnie całego systemu i obejmuje wyłącznie batche w statusie `InProgress` (soft limit – ostrzeżenie, bez blokady).
+7. `BatchSplitRules`: wybrany wariant A (reguły oparte o zakresy `min_qty/max_qty`).
+8. Wyliczanie batchy odbywa się w kodzie (nie w bazie).
+9. Reguła wyliczania: `baseSize = ceil(orderQty * percent / 100)` (zaokrąglanie w górę do jedności, minimum 1), batchowanie po `baseSize`, a ostatni batch stanowi resztę, tak aby suma ilości batchy była równa `orderQty`.
+10. Audyt obejmuje tylko zmiany statusu/etapu batcha + datetime (i praktycznie: identyfikacja użytkownika, kto zmienił).
+11. Współbieżność operacyjna: zakładamy, że nad danym batchem pracuje jeden operator (brak równoległej edycji tego samego batcha jako wymóg biznesowy).
+12. Format produktu może być przechowywany jako nazwa (tabela formatów/lookup), bez konieczności przechowywania wymiarów w MVP.
+</decisions>
+
+<matched_recommendations>
+1. Zastosować spójne klucze obce (FK) dla relacji `projects.order_id` i `batches.project_id`, nawet jeśli logika będzie zarządzana przez repozytoria – zapewnia to integralność danych i minimalizuje ryzyko „osieroconych” rekordów.
+2. Indeksować globalne zliczanie `InProgress` przez partial index w PostgreSQL (np. indeks tylko dla rekordów o statusie `InProgress`) dla szybkich odczytów limitu i dashboardu.
+3. Rozdzielić semantykę „zakończenia/wysłania” od statusów batchy: `Project.IsCompleted` (lub `CompletedAt`) determinuje widoczność na kanbanie, a status/etap opisuje produkcję.
+4. Zapewnić walidację braku nakładania się aktywnych zakresów w `BatchSplitRules` (co najmniej w aplikacji; opcjonalnie constraint po stronie DB w kolejnej iteracji).
+5. Utrzymywać tabelę audytu zmian batchy (kto/kiedy/co) i zapisywać ją transakcyjnie razem ze zmianą statusu/etapu.
+6. Dla czytelności i spójności: użyć enumów (lub słowników) dla statusów i etapów, plus ograniczeń (CHECK) na dozwolone wartości w DB.
+7. Zapewnić unikalność numeracji batchy w obrębie projektu (np. UNIQUE(project_id, batch_no)) oraz indeksy pod najczęstsze zapytania (po projekcie, po statusie).
+</matched_recommendations>
+
+<database_planning_summary>
+a. Główne wymagania dotyczące schematu bazy danych
+- Baza: PostgreSQL, ORM: EF Core (code-first) z migracjami.
+- Encje podstawowe: Orders, Projects, Batches, ProductFormats, BatchSplitRules, AuditLog.
+- Kanban pokazuje wyłącznie projekty aktywne: `Project.IsCompleted = false`.
+- Soft limit 20 `InProgress` liczony globalnie, bez blokowania operacji.
+- Historia zmian batchy jest wymagana w MVP (audyt zmian status/etap).
+
+b. Kluczowe encje i ich relacje
+- `orders` (zlecenia): dane wejściowe z formularza (ilość sztuk, format, termin).
+- `projects`: tworzone na podstawie `orders`; zawierają flagę `is_completed` do ukrywania z kanbana po wysyłce.
+  - Relacja: `orders (1) -> (N) projects`.
+- `batches`: tworzone dla `projects`; zawierają `status` (New/InProgress/Done), `stage` (5 etapów), `quantity`, `batch_no`.
+  - Relacja: `projects (1) -> (N) batches`.
+- `product_formats`: lookup/CRUD formatów (w MVP może być tylko `name` + aktywność).
+- `batch_split_rules`: konfiguracja batchowania w Panelu Managera:
+  - wariant A: `min_qty`, `max_qty`, `percent`, `is_active`.
+  - wybór reguły po `orderQty` i zakresie.
+- `audit_log` (historia zmian batchy): rejestruje zmiany `status` i `stage` oraz timestamp (i użytkownika).
+
+c. Ważne kwestie dotyczące bezpieczeństwa i skalowalności
+- Bezpieczeństwo: single-tenant, brak RLS; RBAC w aplikacji (Manager/Operator).
+- Integralność: FK + NOT NULL + CHECK na ilościach i dozwolonych wartościach status/etap.
+- Wydajność:
+  - indeks po `batches.project_id` dla listowania batchy projektu,
+  - partial index dla `batches` w statusie `InProgress` dla szybkiego zliczania limitu i metryk,
+  - unikalność batchy w projekcie: UNIQUE(project_id, batch_no).
+- Skalowalność MVP: założenie limitu 20 `InProgress` globalnie; batchowanie liczone w kodzie, zapisy wykonywane transakcyjnie.
+
+d. Obszary wymagające implementacyjnej uwagi
+- Batchowanie w kodzie: `baseSize = ceil(orderQty * percent / 100)`; generowanie batchy po `baseSize`, ostatni batch = reszta; zapis w jednej transakcji razem z Order/Project.
+- Przejścia statusów: dozwolone tylko o jeden krok; etapy tylko do przodu – egzekwowane w logice aplikacji, a nie wyłącznie constraintami DB.
+</database_planning_summary>
+
+<unresolved_issues>
+1. Czy dopuszczalne są konkretne cofki statusów: `Done -> InProgress` oraz `InProgress -> New` (w ramach zasady „o jeden krok”), czy ograniczamy cofanie do wybranych przypadków biznesowych.
+2. Czy poza `IsCompleted` chcemy od razu dodać pola `CompletedAt` i `CompletedByUserId` (rekomendowane do historii i raportów, ale nie wymagane).
+3. Dokładny kształt numeracji identyfikatorów biznesowych (np. `order_number`, `project_number`, `batch_no`) i wymagane unikalności poza `project_id + batch_no`.
+</unresolved_issues>
+</conversation_summary>
 </session_notes>
 
 Są to notatki z sesji planowania schematu bazy danych. Mogą one zawierać ważne decyzje, rozważania i konkretne wymagania omówione podczas spotkania.

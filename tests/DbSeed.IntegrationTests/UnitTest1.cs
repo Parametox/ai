@@ -3,8 +3,6 @@ using DataAccess.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit.Sdk;
-
 namespace DbSeed.IntegrationTests;
 
 public sealed class IdentitySeedTests
@@ -15,8 +13,8 @@ public sealed class IdentitySeedTests
     {
         if (!IsEnabled())
         {
-            throw new SkipException(
-                "To jest jednorazowy seed bazy. Ustaw env var KANBANLITE_RUN_DB_SEED_TEST=1 aby uruchomić.");
+            // To jest jednorazowy seed bazy. Ustaw env var KANBANLITE_RUN_DB_SEED_TEST=1 aby uruchomić.
+            return;
         }
 
         var connectionString =
@@ -50,7 +48,7 @@ public sealed class IdentitySeedTests
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        const string managerRoleName = "Menedżer";
+        const string managerRoleName = "Manager";
         const string operatorRoleName = "Operator";
 
         await EnsureRoleExists(roleManager, managerRoleName);

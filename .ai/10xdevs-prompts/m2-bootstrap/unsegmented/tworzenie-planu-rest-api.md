@@ -1,82 +1,63 @@
-# Tworzenie planu REST API
+# Projektowanie Prostej Warstwy Serwisów (.NET Service Layer)
 
 <db-plan>
-{{db-plan}} <- zamień na referencję do @db-plan.md
+@.ai/db-plan.md
 </db-plan>
 
 <prd>
-{{prd}} <- zamień na referencję do @prd.md
+@.ai/prd.md
 </prd>
 
 <tech-stack>
-{{tech-stack}} <- zamień na referencję do @tech-stack.md
+@.ai/tech-stack.md
 </tech-stack>
 
-Jesteś doświadczonym architektem API, którego zadaniem jest stworzenie kompleksowego planu API REST. Twój plan będzie oparty na podanym schemacie bazy danych, dokumencie wymagań produktu (PRD) i stacku technologicznym podanym powyżej. Uważnie przejrzyj dane wejściowe i wykonaj następujące kroki:
+**Kontekst Architektoniczny:**
+Stawiamy na maksymalną prostotę (KISS). Nie używamy CQRS, MediatR ani skomplikowanych wzorców funkcyjnych. Logika ma być zawarta w standardowych serwisach .NET wstrzykiwanych przez DI. Metody serwisów operują bezpośrednio na modelach DTO lub encjach (zależnie od tego, co sugeruje PRD) i są wywoływane bezpośrednio przez komponenty Razor.
 
-1. Przeanalizuj schemat bazy danych:
-   - Zidentyfikuj główne encje (tabele)
-   - Zanotuj relacje między jednostkami
-   - Rozważ wszelkie indeksy, które mogą mieć wpływ na projekt API
-   - Zwróć uwagę na warunki walidacji określone w schemacie.
+Jesteś pragmatycznym deweloperem .NET. Twoim zadaniem jest stworzenie przejrzystego planu serwisów backendowych.
 
-2. Przeanalizuj PRD:
-   - Zidentyfikuj kluczowe cechy i funkcjonalności
-   - Zwróć uwagę na konkretne wymagania dotyczące operacji na danych (pobieranie, tworzenie, aktualizacja, usuwanie)
-   - Zidentyfikuj wymagania logiki biznesowej, które wykraczają poza operacje CRUD
+### Zadania do wykonania:
 
-3. Rozważ stack technologiczny:
-   - Upewnij się, że plan API jest zgodny z określonymi technologiami.
-   - Rozważ, w jaki sposób te technologie mogą wpłynąć na projekt API
+1. **Analiza Struktury:**
+   - Przejrzyj tabelę bazy danych i PRD.
+   - Pogrupuj funkcjonalności w logiczne serwisy (np. `ProjectService`, `UserService`).
 
-4. Tworzenie kompleksowego planu interfejsu API REST:
-   - Zdefiniowanie głównych zasobów w oparciu o encje bazy danych i wymagania PRD
-   - Zaprojektowanie punktów końcowych CRUD dla każdego zasobu
-   - Zaprojektuj punkty końcowe dla logiki biznesowej opisanej w PRD
-   - Uwzględnienie paginacji, filtrowania i sortowania dla punktów końcowych listy.
-   - Zaplanuj odpowiednie użycie metod HTTP
-   - Zdefiniowanie struktur ładunku żądania i odpowiedzi
-   - Uwzględnienie mechanizmów uwierzytelniania i autoryzacji, jeśli wspomniano o nich w PRD
-   - Rozważenie ograniczenia szybkości i innych środków bezpieczeństwa
+2. **Projektowanie Metod:**
+   - Zaplanuj standardowe metody CRUD (Create, Read, Update, Delete).
+   - Dodaj metody dla specyficznej logiki biznesowej opisanej w PRD (np. `ChangeStatus`, `AssignUser`).
+   - Używaj standardowych typów zwracanych: `Task<T>`, `Task<IEnumerable<T>>` lub `Task<bool>`.
 
-Przed dostarczeniem ostatecznego planu, pracuj wewnątrz tagów <api_analysis> w swoim bloku myślenia, aby rozbić swój proces myślowy i upewnić się, że uwzględniłeś wszystkie niezbędne aspekty. W tej sekcji:
+3. **Uproszczona Walidacja i Bezpieczeństwo:**
+   - Wykorzystaj atrybuty `[Authorize]` lub proste sprawdzenia `User.IsInRole` wewnątrz metod.
+   - Walidacja powinna opierać się na standardowych mechanizmach .NET (np. Data Annotations).
 
-1. Wymień główne encje ze schematu bazy danych. Ponumeruj każdą encję i zacytuj odpowiednią część schematu.
-2. Wymień kluczowe funkcje logiki biznesowej z PRD. Ponumeruj każdą funkcję i zacytuj odpowiednią część PRD.
-3. Zmapuj funkcje z PRD do potencjalnych punktów końcowych API. Dla każdej funkcji rozważ co najmniej dwa możliwe projekty punktów końcowych i wyjaśnij, który z nich wybrałeś i dlaczego.
-4. Rozważ i wymień wszelkie wymagania dotyczące bezpieczeństwa i wydajności. Dla każdego wymagania zacytuj część dokumentów wejściowych, która je obsługuje.
-5. Wyraźnie mapuj logikę biznesową z PRD na punkty końcowe API.
-6. Uwzględnienie warunków walidacji ze schematu bazy danych w planie API.
+---
 
-Ta sekcja może być dość długa.
+### Proces myślowy (wewnątrz tagów <service_analysis>):
+1. Wymień główne encje i określ, jakie serwisy są potrzebne do ich obsługi.
+2. Zidentyfikuj w PRD konkretne akcje użytkownika i przypisz je jako metody do serwisów.
+3. Zidentyfikuj relacje (np. "Projekt ma wiele Zadań") i zdecyduj, czy Zadania obsługuje `ProjectService` czy dedykowany `TaskService`.
+4. Ustal proste reguły walidacji (np. "Pole X nie może być puste") na podstawie schematu DB.
 
-Ostateczny plan API powinien być sformatowany w markdown i zawierać następujące sekcje:
+---
 
-```markdown
-# REST API Plan
+### Struktura dokumentu wynikowego (.ai/service-layer-plan.md):
 
-## 1. Zasoby
-- Wymień każdy główny zasób i odpowiadającą mu tabelę bazy danych
+# Backend Service Plan (Blazor Server)
 
-## 2. Punkty końcowe
-Dla każdego zasobu podaj:
-- Metoda HTTP
-- Ścieżka URL
-- Krótki opis
-- Parametry zapytania (jeśli dotyczy)
-- Struktura ładunku żądania JSON (jeśli dotyczy)
-- Struktura ładunku odpowiedzi JSON
-- Kody i komunikaty powodzenia
-- Kody i komunikaty błędów
+## 1. Lista Serwisów i Rejestracja DI
+- Krótka lista serwisów i informacja o ich cyklu życia (np. `builder.Services.AddScoped<IProjectService, ProjectService>();`).
 
-## 3. Uwierzytelnianie i autoryzacja
-- Opisz wybrany mechanizm uwierzytelniania i szczegóły implementacji
+## 2. Szczegóły Serwisów
+Dla każdego serwisu (np. `ProjectService`):
+- **Metody:** Nazwa metody, parametry wejściowe, zwracany typ.
+- **Opis:** Krótko, co metoda robi i jaką logikę z PRD realizuje.
+- **Walidacja:** Podstawowe warunki, które muszą być spełnione przed zapisem.
+- **Uprawnienia:** Kto (jaka rola) ma dostęp do danej metody.
 
-## 4. Walidacja i logika biznesowa
-- Lista warunków walidacji dla każdego zasobu
-- Opisz, w jaki sposób logika biznesowa jest zaimplementowana w API
-```
+## 3. Modele Danych (DTOs)
+- Lista prostych klas/rekordów C# służących do przesyłania danych między widokiem a serwisem (jeśli różnią się od encji bazy danych).
 
-Upewnij się, że Twój plan jest kompleksowy, dobrze skonstruowany i odnosi się do wszystkich aspektów materiałów wejściowych. Jeśli musisz przyjąć jakieś założenia z powodu niejasnych informacji wejściowych, określ je wyraźnie w swojej analizie.
-
-Końcowy wynik powinien składać się wyłącznie z planu API w formacie markdown w języku angielskim, który zapiszesz w .ai/api-plan.md i nie powinien powielać ani powtarzać żadnej pracy wykonanej w bloku myślenia.
+## 4. Obsługa Błędów
+- Prosta strategia (np. rzucanie wyjątków biznesowych lub zwracanie `null` / `false` przy niepowodzeniu).

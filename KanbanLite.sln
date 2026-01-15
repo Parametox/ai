@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KanbanLite.Application", "src\Application\KanbanLite.Application.csproj", "{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataAccess", "src\DataAccess\DataAccess.csproj", "{0DE14F58-D163-4B6E-AFA8-27FC837B3C90}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbMigrator", "src\DbMigrator\DbMigrator.csproj", "{9AA5412D-20DB-409D-8263-B5DD45243E28}"
@@ -12,6 +14,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbSeed.IntegrationTests", "tests\DbSeed.IntegrationTests\DbSeed.IntegrationTests.csproj", "{752FE485-8642-40DA-8A55-542621564F92}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KanbanLite.Application.UnitTests", "tests\KanbanLite.Application.UnitTests\KanbanLite.Application.UnitTests.csproj", "{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,6 +27,18 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Debug|x64.Build.0 = Debug|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Debug|x86.Build.0 = Debug|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Release|x64.ActiveCfg = Release|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Release|x64.Build.0 = Release|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Release|x86.ActiveCfg = Release|Any CPU
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C}.Release|x86.Build.0 = Release|Any CPU
 		{0DE14F58-D163-4B6E-AFA8-27FC837B3C90}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0DE14F58-D163-4B6E-AFA8-27FC837B3C90}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0DE14F58-D163-4B6E-AFA8-27FC837B3C90}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -59,13 +75,27 @@ Global
 		{752FE485-8642-40DA-8A55-542621564F92}.Release|x64.Build.0 = Release|Any CPU
 		{752FE485-8642-40DA-8A55-542621564F92}.Release|x86.ActiveCfg = Release|Any CPU
 		{752FE485-8642-40DA-8A55-542621564F92}.Release|x86.Build.0 = Release|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Debug|x64.Build.0 = Debug|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Debug|x86.Build.0 = Debug|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Release|x64.ActiveCfg = Release|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Release|x64.Build.0 = Release|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Release|x86.ActiveCfg = Release|Any CPU
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{C1B4E2E0-7E09-4F46-9F23-2EB3AEF9CA6C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{0DE14F58-D163-4B6E-AFA8-27FC837B3C90} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{9AA5412D-20DB-409D-8263-B5DD45243E28} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{752FE485-8642-40DA-8A55-542621564F92} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{C69FA004-3DAC-40B2-AE13-FFA72C8AFA8E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

@@ -2,3 +2,5 @@
 alwaysApply: true
 ---
   Aktualizuj dokumentację projektu za każdym razem, gdy pojawiają się nowe informacje techniczne, funkcjonalne lub biznesowe. Każda zmiana powinna natychmiast odzwierciedlać aktualny stan wiedzy zespołu.
+  - Uzupełniaj i aktualizuj dokumentację po każdej zmianie funkcjonalnej, technicznej lub biznesowej, koncentrując się na nowych i istotnych informacjach dla zespołu.
+  - Przy wprowadzaniu poprawek unikaj powielania już udokumentowanych treści – dopisuj tylko to, co uzupełnia stan wiedzy lub eliminuje nieścisłości.
