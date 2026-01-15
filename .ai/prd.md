@@ -238,17 +238,6 @@
 
 // End of Selection
 ```
-
-## Nierozwiązane kwestie
-
-1. **Dokładna semantyka ostrzeżenia limitu:** Czy ostrzegamy tylko przy faktycznym przekroczeniu (przy zmianie statusu na InProgress), czy też "potencjalnie" już na etapie tworzenia zlecenia?
-
-2. **Reguły przejść statusów:** Czy dopuszczamy powroty (np. InProgress → New / Done → InProgress), czy tylko "do przodu" jak etapy?
-
-3. **Definicja "Done" vs etap:** Czy batch może mieć status Done zanim osiągnie etap Wysyłka, czy Done oznacza "ukończony etapowo" (Shipping + Done)?
-
-4. **Szczegóły dashboardu:** Dokładny zakres danych (np. "ostatnie 10 zakończonych") i sposób liczenia średniego czasu realizacji.
-
 ---
 
 **Dokument przygotowany:** 12 stycznia 2026  

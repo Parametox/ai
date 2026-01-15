@@ -1,0 +1,31 @@
+@using MudBlazor
+@using DataAccess.Enums
+
+<MudSelect Value="@CurrentStage"
+           ValueChanged="OnSelectionChanged"
+           Label="Etap"
+           Variant="Variant.Outlined"
+           T="ProductionStage"
+           Disabled="@(Disabled || _saving)"
+           Dense="true">
+    <MudSelectItem Value="@ProductionStage.Design" Disabled="@IsOptionDisabled(ProductionStage.Design)">
+        @GetStageName(ProductionStage.Design)
+    </MudSelectItem>
+    <MudSelectItem Value="@ProductionStage.Print" Disabled="@IsOptionDisabled(ProductionStage.Print)">
+        @GetStageName(ProductionStage.Print)
+    </MudSelectItem>
+    <MudSelectItem Value="@ProductionStage.Cut" Disabled="@IsOptionDisabled(ProductionStage.Cut)">
+        @GetStageName(ProductionStage.Cut)
+    </MudSelectItem>
+    <MudSelectItem Value="@ProductionStage.Pack" Disabled="@IsOptionDisabled(ProductionStage.Pack)">
+        @GetStageName(ProductionStage.Pack)
+    </MudSelectItem>
+    <MudSelectItem Value="@ProductionStage.Ship" Disabled="@IsOptionDisabled(ProductionStage.Ship)">
+        @GetStageName(ProductionStage.Ship)
+    </MudSelectItem>
+</MudSelect>
+
+@if (_saving)
+{
+    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-2" />
+}

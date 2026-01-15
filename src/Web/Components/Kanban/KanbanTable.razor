@@ -1,0 +1,65 @@
+@using MudBlazor
+@using KanbanLite.Contracts
+@using DataAccess.Enums
+
+<MudTable Items="@(Batches?.Items ?? Array.Empty<KanbanBatchDto>())"
+          Hover="true"
+          Striped="true"
+          Dense="true"
+          Bordered="true"
+          PageSizeOptions="@(new int[] { 25, 50, 100 })"
+          PageSize="Query.PageSize"
+          CurrentPage="Query.Page"
+          TotalItems="@(Batches?.Total ?? 0)"
+          OnPageChanged="OnPageChanged"
+          OnPageSizeChanged="OnPageSizeChanged">
+    <ToolBarContent>
+        <MudText Typo="Typo.h6">Lista batchy</MudText>
+        <MudSpacer />
+        <MudText>@(Batches?.Total ?? 0) batchy</MudText>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh>Numer zlecenia</MudTh>
+        <MudTh>Numer batcha</MudTh>
+        <MudTh>Liczba sztuk</MudTh>
+        <MudTh>Postęp</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Etap</MudTh>
+        <MudTh>Ostrzeżenie</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="Numer zlecenia">
+            <MudLink Href="@($"/project/{context.ProjectId}")" Typo="Typo.body1">
+                @context.OrderNumber
+            </MudLink>
+        </MudTd>
+        <MudTd DataLabel="Numer batcha">@context.BatchNo</MudTd>
+        <MudTd DataLabel="Liczba sztuk">@context.Quantity</MudTd>
+        <MudTd DataLabel="Postęp">
+            <MudProgressLinear Value="@context.ProgressPercent" Color="Color.Primary" />
+            <MudText Typo="Typo.caption">@context.ProgressPercent%</MudText>
+        </MudTd>
+        <MudTd DataLabel="Status">
+            <BatchStatusSelect BatchId="@context.BatchId"
+                               CurrentStatus="@context.Status"
+                               OnStatusChanged="OnStatusChanged" />
+        </MudTd>
+        <MudTd DataLabel="Etap">
+            <BatchStageSelect BatchId="@context.BatchId"
+                             CurrentStage="@context.Stage"
+                             OnStageChanged="OnStageChanged" />
+        </MudTd>
+        <MudTd DataLabel="Ostrzeżenie">
+            @if (InProgressCount > 20 && context.Status == BatchStatus.InProgress)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
+            }
+        </MudTd>
+    </RowTemplate>
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+    <NoRecordsContent>
+        <MudText>Brak aktywnych batchy</MudText>
+    </NoRecordsContent>
+</MudTable>

@@ -1,0 +1,25 @@
+@using MudBlazor
+@using DataAccess.Enums
+
+<MudSelect Value="@CurrentStatus"
+           ValueChanged="OnSelectionChanged"
+           Label="Status"
+           Variant="Variant.Outlined"
+           T="BatchStatus"
+           Disabled="@(Disabled || _saving)"
+           Dense="true">
+    <MudSelectItem Value="@BatchStatus.New" Disabled="@IsOptionDisabled(BatchStatus.New)">
+        New
+    </MudSelectItem>
+    <MudSelectItem Value="@BatchStatus.InProgress" Disabled="@IsOptionDisabled(BatchStatus.InProgress)">
+        InProgress
+    </MudSelectItem>
+    <MudSelectItem Value="@BatchStatus.Done" Disabled="@IsOptionDisabled(BatchStatus.Done)">
+        Done
+    </MudSelectItem>
+</MudSelect>
+
+@if (_saving)
+{
+    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-2" />
+}
