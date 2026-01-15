@@ -56,13 +56,78 @@ Zgodnie z `.ai/tech-stack.md`:
 
 ## Uruchomienie lokalnie
 
-W repozytorium **nie ma jeszcze kodu aplikacji** ani plików projektu (`*.csproj`) — na ten moment są tu głównie pliki w `.ai/` (PRD i ustalenia).
+Repozytorium zawiera już podstawową strukturę `.NET` oraz **warstwę dostępu do danych** (EF Core + PostgreSQL) z migracjami.
 
-Gdy pojawi się implementacja (Blazor Server + EF Core), README zostanie uzupełnione o:
+### Wymagania
 
-- wymagania (np. .NET SDK 8/9),
-- konfigurację połączenia do PostgreSQL,
-- komendy `dotnet restore`, `dotnet ef database update`, `dotnet run`.
+- **.NET SDK 9** (wymagane przez aktualne projekty)
+- Lokalny **PostgreSQL**:
+  - rekomendowane: **Docker Desktop** + `docker compose`
+  - alternatywnie: lokalna instalacja PostgreSQL 16/17
+
+### Baza danych (Docker)
+
+Jeśli masz Docker Desktop:
+
+```bash
+docker compose up -d
+```
+
+Domyślne parametry w `docker-compose.yml`:
+- DB: `kanbanlite`
+- user: `kanbanlite`
+- password: `kanbanlite`
+- port: `5432`
+
+### Baza danych (lokalna instalacja PostgreSQL) — wariant 2
+
+Jeśli instalujesz PostgreSQL lokalnie na Windows, upewnij się, że masz w PATH narzędzie `psql` (folder `...\PostgreSQL\XX\bin`).
+
+1) Ustaw hasło admina (z instalatora) jako `PGPASSWORD`:
+
+```powershell
+$env:PGPASSWORD="TwojeHasloPostgres"
+```
+
+2) Utwórz rolę + bazę:
+
+```powershell
+.\scripts\setup-local-postgres.ps1
+```
+
+3) Zastosuj migracje:
+
+```powershell
+.\scripts\apply-migrations.ps1
+```
+
+### Migracje EF Core
+
+Migracje są w projekcie `src/DataAccess` (Code-First).
+
+Ustaw connection string (opcjonalnie — jest też domyślna wartość):
+
+```powershell
+$env:KANBANLITE_CONNECTION_STRING="Host=localhost;Port=5432;Database=kanbanlite;Username=kanbanlite;Password=kanbanlite"
+```
+
+Zastosuj migracje do bazy:
+
+```powershell
+dotnet tool run dotnet-ef database update --project src/DataAccess --startup-project src/DbMigrator
+```
+
+Alternatywnie (aplikacja konsolowa wykonująca `Database.Migrate()`):
+
+```powershell
+dotnet run --project src/DbMigrator
+```
+
+### Struktura solucji
+
+- `KanbanLite.sln` — solucja
+- `src/DataAccess` — encje, `AppDbContext`, migracje
+- `src/DbMigrator` — minimalny projekt startowy do uruchamiania migracji
 
 ## Dostępne skrypty
 

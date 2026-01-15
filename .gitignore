@@ -1,0 +1,53 @@
+## --- Artefakty Kompilacji ---
+[Bb]in/
+[Oo]bj/
+[Rr]elease/
+[Dd]ebug/
+
+## --- Visual Studio ---
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.vstoken
+
+## --- Visual Studio Code ---
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+## --- JetBrains (Rider / ReSharper) ---
+.idea/
+*.sln.iml
+
+## --- NuGet ---
+# Nie ignoruj samej konfiguracji, ale ignoruj pobrane paczki
+packages/
+*.nuget.props
+*.nuget.targets
+# Jeśli używasz lokalnych paczek, odkomentuj poniższe:
+# *.nupkg
+
+## --- Testy i Raporty ---
+TestResults/
+*.sequenced
+*.coverage
+*.trx
+
+## --- Systemowe i tymczasowe ---
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+## --- ASP.NET Core / Web ---
+wwwroot/lib/
+node_modules/
+.env
+.env.*
+appsettings.Development.json
+# Uwaga: appsettings.json powinien być w repozytorium jako szablon
