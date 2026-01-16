@@ -10,7 +10,7 @@
           PageSizeOptions="@(new int[] { 25, 50, 100 })"
           PageSize="Query.PageSize"
           CurrentPage="Query.Page"
-          TotalItems="@(Batches?.Total ?? 0)"
+          TotalItems="@((int)(Batches?.Total ?? 0))"
           OnPageChanged="OnPageChanged"
           OnPageSizeChanged="OnPageSizeChanged">
     <ToolBarContent>

@@ -18,9 +18,8 @@ builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddMudServices();
 
 // DataAccess - AppDbContext
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+var connectionString = builder.Configuration.GetConnectionString("KanbanConnectionString") ?? Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
+    ?? throw new InvalidOperationException("Connection string 'KanbanConnectionString' not found.");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 

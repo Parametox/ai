@@ -1,9 +1,15 @@
 using DataAccess;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
-var connectionString =
-    Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
-    ?? "Host=localhost;Port=5432;Database=kanbanlite;Username=kanbanlite;Password=kanbanlite";
+var configuration = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddEnvironmentVariables()
+    .Build();
+
+var connectionString = configuration.GetConnectionString("KanbanConnectionString")
+    ?? throw new InvalidOperationException("Connection string 'KanbanConnectionString' not found.");
 
 Console.WriteLine("Applying EF Core migrations...");
 Console.WriteLine($"Connection string: {connectionString}");

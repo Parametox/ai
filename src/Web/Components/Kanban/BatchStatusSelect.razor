@@ -8,13 +8,13 @@
            T="BatchStatus"
            Disabled="@(Disabled || _saving)"
            Dense="true">
-    <MudSelectItem Value="@BatchStatus.New" Disabled="@IsOptionDisabled(BatchStatus.New)">
+    <MudSelectItem T="BatchStatus" Value="@BatchStatus.New" Disabled="@IsOptionDisabled(BatchStatus.New)">
         New
     </MudSelectItem>
-    <MudSelectItem Value="@BatchStatus.InProgress" Disabled="@IsOptionDisabled(BatchStatus.InProgress)">
+    <MudSelectItem T="BatchStatus" Value="@BatchStatus.InProgress" Disabled="@IsOptionDisabled(BatchStatus.InProgress)">
         InProgress
     </MudSelectItem>
-    <MudSelectItem Value="@BatchStatus.Done" Disabled="@IsOptionDisabled(BatchStatus.Done)">
+    <MudSelectItem T="BatchStatus" Value="@BatchStatus.Done" Disabled="@IsOptionDisabled(BatchStatus.Done)">
         Done
     </MudSelectItem>
 </MudSelect>

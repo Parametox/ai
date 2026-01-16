@@ -1,3 +1,4 @@
+using DataAccess.Enums;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Services;
 using KanbanLite.Contracts;
@@ -125,19 +126,19 @@ public partial class Kanban : ComponentBase, IDisposable
         _ = LoadDataAsync();
     }
 
-    private async Task OnStatusChanged(long batchId, BatchStatus newStatus)
+    private async Task OnStatusChanged((long BatchId, BatchStatus Status) args)
     {
         try
         {
             _loading = true;
             StateHasChanged();
 
-            var request = new UpdateBatchStatusRequest(newStatus);
-            var result = await BatchService.UpdateStatusAsync(batchId, request);
+            var request = new UpdateBatchStatusRequest(args.Status);
+            var result = await BatchService.UpdateStatusAsync(args.BatchId, request);
 
             if (result.IsSuccess)
             {
-                _inProgressCount = result.Value.InProgressCount;
+                _inProgressCount = result.Value!.InProgressCount;
                 
                 // Wyświetlenie ostrzeżeń jeśli są
                 if (result.Value.Warnings.Any())
@@ -162,7 +163,7 @@ public partial class Kanban : ComponentBase, IDisposable
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Błąd podczas zmiany statusu batcha {BatchId}", batchId);
+            Logger.LogError(ex, "Błąd podczas zmiany statusu batcha {BatchId}", args.BatchId);
             HandleError(AppError.Unexpected("Wystąpił nieoczekiwany błąd podczas zmiany statusu."));
         }
         finally
@@ -172,15 +173,15 @@ public partial class Kanban : ComponentBase, IDisposable
         }
     }
 
-    private async Task OnStageChanged(long batchId, ProductionStage newStage)
+    private async Task OnStageChanged((long BatchId, ProductionStage Stage) args)
     {
         try
         {
             _loading = true;
             StateHasChanged();
 
-            var request = new UpdateBatchStageRequest(newStage);
-            var result = await BatchService.UpdateStageAsync(batchId, request);
+            var request = new UpdateBatchStageRequest(args.Stage);
+            var result = await BatchService.UpdateStageAsync(args.BatchId, request);
 
             if (result.IsSuccess)
             {
@@ -196,7 +197,7 @@ public partial class Kanban : ComponentBase, IDisposable
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Błąd podczas zmiany etapu batcha {BatchId}", batchId);
+            Logger.LogError(ex, "Błąd podczas zmiany etapu batcha {BatchId}", args.BatchId);
             HandleError(AppError.Unexpected("Wystąpił nieoczekiwany błąd podczas zmiany etapu."));
         }
         finally

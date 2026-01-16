@@ -1,3 +1,4 @@
+using DataAccess.Enums;
 using KanbanLite.Contracts;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
@@ -9,8 +10,8 @@ public partial class KanbanTable : ComponentBase
     [Parameter] public KanbanBatchesResult? Batches { get; set; }
     [Parameter] public KanbanQuery Query { get; set; } = new();
     [Parameter] public int InProgressCount { get; set; }
-    [Parameter] public EventCallback<long, BatchStatus> OnStatusChanged { get; set; }
-    [Parameter] public EventCallback<long, ProductionStage> OnStageChanged { get; set; }
+    [Parameter] public EventCallback<(long BatchId, BatchStatus Status)> OnStatusChanged { get; set; }
+    [Parameter] public EventCallback<(long BatchId, ProductionStage Stage)> OnStageChanged { get; set; }
     [Parameter] public EventCallback<KanbanQuery> OnQueryChanged { get; set; }
 
     private async Task OnPageChanged(int page)

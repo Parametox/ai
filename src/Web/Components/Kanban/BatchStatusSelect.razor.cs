@@ -8,7 +8,7 @@ public partial class BatchStatusSelect : ComponentBase
 {
     [Parameter] public long BatchId { get; set; }
     [Parameter] public BatchStatus CurrentStatus { get; set; }
-    [Parameter] public EventCallback<long, BatchStatus> OnStatusChanged { get; set; }
+    [Parameter] public EventCallback<(long BatchId, BatchStatus Status)> OnStatusChanged { get; set; }
     [Parameter] public bool Disabled { get; set; }
 
     private bool _saving;
@@ -41,7 +41,7 @@ public partial class BatchStatusSelect : ComponentBase
             _saving = true;
             StateHasChanged();
 
-            await OnStatusChanged.InvokeAsync(BatchId, newStatus);
+            await OnStatusChanged.InvokeAsync((BatchId, newStatus));
         }
         finally
         {
