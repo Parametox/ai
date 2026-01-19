@@ -190,20 +190,88 @@ app.MapRazorPages();
 app.MapBlazorHub();
 
 // Routes:
-/                          → Index (redirect to /kanban)
-/login                     → Login.razor
-/kanban                    → Kanban.razor (Operator + Manager)
-/project/{id}              → ProjectDetails.razor (Operator + Manager)
-/manager/dashboard         → Dashboard.razor (Manager only)
-/manager/orders/create     → Create.razor (Manager only)
-/manager/orders/history    → History.razor (Manager only)
-/manager/formats           → Formats/Index.razor (Manager only)
-/manager/split-rules       → SplitRules/Index.razor (Manager only)
+/                          → Index (redirect to /kanban) [Authorize]
+/login                     → Login.razor [AllowAnonymous]
+/kanban                    → Kanban.razor (Operator + Manager) [Authorize]
+/project/{id}              → ProjectDetails.razor (Operator + Manager) [Authorize]
+/manager/dashboard         → Dashboard.razor (Manager only) [Authorize(Roles = "Manager")]
+/manager/orders/create     → Create.razor (Manager only) [Authorize(Roles = "Manager")]
+/manager/orders/history    → History.razor (Manager only) [Authorize(Roles = "Manager")]
+/manager/formats           → Formats/Index.razor (Manager only) [Authorize(Roles = "Manager")]
+/manager/split-rules       → SplitRules/Index.razor (Manager only) [Authorize(Roles = "Manager")]
 ```
 
 ---
 
 ## 3. Szczegóły implementacji widoków
+
+### 3.0. Strona logowania
+
+#### Login.razor
+- **Komponenty MudBlazor:**
+  - `MudContainer` z `MaxWidth="MaxWidth.Small"` i wyśrodkowaniem
+  - `MudCard` z formularzem logowania:
+    - `MudTextField` dla username (login) z `Label="Nazwa użytkownika"` i `Required="true"`
+    - `MudTextField` dla password z `InputType="InputType.Password"`, `Label="Hasło"` i `Required="true"`
+    - `MudButton` "Zaloguj" (typ submit)
+    - `MudAlert` z `Severity.Error` dla błędów logowania (jeśli występują)
+  - Opcjonalnie: logo/nazwa aplikacji nad formularzem
+- **Autoryzacja:** `@attribute [AllowAnonymous]` (dostęp bez logowania)
+- **Przekierowanie:** Po zalogowaniu na `/` (strona główna), która przekierowuje do `/kanban`
+
+**Logika Login.razor.cs:**
+```csharp
+private LoginRequest _model = new();
+private string? _errorMessage;
+private bool _loading;
+
+protected override void OnInitialized()
+{
+    // Jeśli użytkownik już zalogowany, przekieruj na główną
+    if (_authStateProvider.GetAuthenticationStateAsync().Result.User.Identity?.IsAuthenticated == true)
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}
+
+private async Task HandleLogin()
+{
+    _loading = true;
+    _errorMessage = null;
+    
+    try
+    {
+        var result = await _authService.LoginAsync(_model);
+        if (result.IsSuccess)
+        {
+            // Przekierowanie na stronę główną (która przekierowuje do /kanban)
+            var returnUrl = NavigationManager.QueryString("returnUrl") ?? "/";
+            NavigationManager.NavigateTo(returnUrl);
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage ?? "Nieprawidłowa nazwa użytkownika lub hasło";
+        }
+    }
+    catch (Exception ex)
+    {
+        _errorMessage = "Wystąpił błąd podczas logowania. Spróbuj ponownie.";
+    }
+    finally
+    {
+        _loading = false;
+        StateHasChanged();
+    }
+}
+```
+
+**Uwagi implementacyjne:**
+- Formularz używa `EditContext` do walidacji po stronie klienta
+- Błędy logowania wyświetlane przez `MudAlert` z `Severity.Error`
+- Przycisk "Zaloguj" wyłączony podczas ładowania (`Disabled="{_loading}"`)
+- Opcjonalnie: `MudProgressCircular` podczas logowania
+
+---
 
 ### 3.1. Layout i nawigacja
 
@@ -697,20 +765,62 @@ private async Task OnStatusChanged(int batchId, BatchStatus newStatus)
 
 ## 7. Autoryzacja
 
-### 7.1. Atrybuty autoryzacji
+### 7.1. Globalna konfiguracja autoryzacji
+
+**W `Program.cs`:**
+```csharp
+builder.Services.AddAuthorization(options =>
+{
+    // Wymuszona autoryzacja dla wszystkich stron poza /login
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+
+// Wyjątek dla strony logowania
+builder.Services.Configure<RouteOptions>(options =>
+{
+    // Login.razor ma [AllowAnonymous]
+});
+```
+
+### 7.2. Atrybuty autoryzacji
 
 **Użycie:**
 ```csharp
+@attribute [AllowAnonymous] // Dostęp bez logowania (tylko Login.razor)
 @attribute [Authorize] // Wymaga zalogowania
 @attribute [Authorize(Roles = "Manager")] // Tylko Manager
 ```
 
 **Przykłady:**
+- `Login.razor` → `[AllowAnonymous]` (dostęp bez logowania)
+- `Index.razor` → `[Authorize]` (przekierowuje do /kanban)
 - `Kanban.razor` → `[Authorize]` (Operator + Manager)
 - `Dashboard.razor` → `[Authorize(Roles = "Manager")]`
 - `Create.razor` → `[Authorize(Roles = "Manager")]`
 
-### 7.2. Warunkowe wyświetlanie w UI
+### 7.3. Przekierowanie niezalogowanych użytkowników
+
+**Mechanizm:**
+- Próba dostępu do chronionej strony przez niezalogowanego użytkownika → przekierowanie na `/login?returnUrl={originalUrl}`
+- Po zalogowaniu przekierowanie na `returnUrl` lub domyślnie `/`
+
+**Implementacja w `Login.razor.cs`:**
+```csharp
+protected override void OnInitialized()
+{
+    // Jeśli użytkownik już zalogowany, przekieruj
+    var authState = await _authStateProvider.GetAuthenticationStateAsync();
+    if (authState.User.Identity?.IsAuthenticated == true)
+    {
+        var returnUrl = NavigationManager.QueryString("returnUrl") ?? "/";
+        NavigationManager.NavigateTo(returnUrl);
+    }
+}
+```
+
+### 7.4. Warunkowe wyświetlanie w UI
 
 **Użycie `IAuthorizationService`:**
 ```razor
@@ -719,6 +829,21 @@ private async Task OnStatusChanged(int batchId, BatchStatus newStatus)
 @if (await AuthService.IsAuthorizedAsync(User, null, "Manager"))
 {
     <MudButton>Wyślij do klienta</MudButton>
+}
+```
+
+**Alternatywnie przez `AuthenticationState`:**
+```razor
+@inject AuthenticationStateProvider AuthStateProvider
+
+@{
+    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+    var isManager = authState.User.IsInRole("Manager");
+}
+
+@if (isManager)
+{
+    <MudButton>Panel Managera</MudButton>
 }
 ```
 

@@ -1,0 +1,25 @@
+@inject NavigationManager Navigation
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+            
+            // Jeśli już jesteśmy na /login, nie przekierowuj ponownie (unikaj pętli)
+            if (currentPath.StartsWith("/login", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+            
+            // Jeśli brak returnUrl, użyj aktualnej ścieżki (bez query string)
+            var returnUrl = currentPath;
+            if (string.IsNullOrEmpty(returnUrl) || returnUrl == "/")
+            {
+                returnUrl = "/kanban"; // Domyślnie przekieruj na kanban po zalogowaniu
+            }
+            
+            Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}", replace: true);
+        }
+    }
+}

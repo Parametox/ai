@@ -69,8 +69,15 @@
 ### a) Główne wymagania funkcjonalne produktu
 
 #### Autentykacja i role
-- Logowanie użytkowników, role Manager/Operator.
-- Manager widzi: Kanban + Panel Managera; Operator widzi: tylko Kanban.
+- **Logowanie:** Włączone (`enabled="true"`). Użytkownicy po uruchomieniu aplikacji zawsze trafiają na ekran logowania. Widoki dostępne są wyłącznie po poprawnej autoryzacji.
+- **Rejestracja:** Wyłączona (`enabled="false"`). Brak self-registration; konta tworzone przez skrypt seedujący.
+- **Role:** Dwie role: **Manager** i **Operator**. Każda rola ma pełnić inne funkcje określone w PRD.
+- **Wymuszona autentykacja:** `forced-authentication="true"`. Użytkownicy niezalogowani nie mają dostępu do żadnych stron aplikacji poza logowaniem.
+- **Przekierowanie po logowaniu:** Domyślnie na stronę główną (`/`), która przekierowuje do Kanban.
+- **Dostęp do widoków:**
+  - Manager widzi: Kanban + Panel Managera; może wykonać akcję "Wyślij do klienta".
+  - Operator widzi: tylko Kanban.
+- **Dostęp gości:** Zablokowany (`guests denied="true"`).
 
 #### Zlecenia/projekty
 - Formularz utworzenia zlecenia: liczba sztuk, format produktu (lookup), termin realizacji (walidacje: 1–100000, termin ≥ dziś+7 dni).
@@ -235,9 +242,149 @@
 
 ---
 
+## Plan architektury systemu uwierzytelniania
 
-// End of Selection
+### Przegląd architektury
+
+System uwierzytelniania w KanbanLite MVP opiera się na **ASP.NET Core Identity** zintegrowanym z **Blazor Server**. Architektura zapewnia wymuszoną autentykację dla wszystkich użytkowników, kontrolę dostępu opartą na rolach (RBAC) oraz prostą konfigurację bez możliwości samodzielnej rejestracji.
+
+### Komponenty systemu
+
+#### 1. **ASP.NET Core Identity**
+- **IdentityDbContext:** Kontekst bazy danych zarządzający użytkownikami, rolami i claimami
+- **User Store:** Przechowywanie danych użytkowników w SQL Server (tabele: `AspNetUsers`, `AspNetRoles`, `AspNetUserRoles`)
+- **Password Hasher:** Bezpieczne hashowanie haseł używając PBKDF2
+- **SignInManager:** Zarządzanie sesjami logowania i wylogowania
+
+#### 2. **Blazor Server Authentication**
+- **AuthenticationStateProvider:** Dostarczanie informacji o stanie uwierzytelnienia do komponentów Blazor
+- **AuthorizeView:** Komponenty warunkowo renderowane na podstawie roli/autentykacji
+- **[Authorize] attribute:** Ochrona routingu i stron przed nieautoryzowanym dostępem
+- **CascadingAuthenticationState:** Propagacja stanu uwierzytelnienia w hierarchii komponentów
+
+#### 3. **Role-Based Access Control (RBAC)**
+- **Role:** Manager, Operator
+- **Policy-based authorization:** Polityki dostępu definiowane w `Program.cs` lub `Startup.cs`
+- **Role checks:** Weryfikacja roli w komponentach i kontrolerach
+
+#### 4. **Konfiguracja routingu i przekierowań**
+- **Login Page:** `/login` - jedyna publicznie dostępna strona
+- **Default Route:** `/` - sprawdza autoryzację: niezalogowany → `/login`, zalogowany → `/kanban`
+- **Unauthorized Redirect:** Automatyczne przekierowanie do `/login` dla niezalogowanych
+- **Forced Authentication:** Wszystkie strony wymagają autentykacji (oprócz logowania i strony głównej `/`)
+
+#### 5. **Seedowanie danych**
+- **Database Seeder:** Skrypt inicjalizujący domyślnych użytkowników:
+  - Manager: `menago/menago`
+  - Operator: `operator/operator`
+- **Role Seeder:** Automatyczne tworzenie ról przy pierwszym uruchomieniu
+- **Migration Strategy:** Seedowanie w metodzie `OnModelCreating` lub dedykowanym middleware
+
+### Przepływ uwierzytelniania
+
+1. **Użytkownik odwiedza aplikację** → Ładuje się strona główna `/` (Index.razor)
+2. **Index sprawdza autoryzację** → Jeśli niezalogowany → przekierowanie do `/login`, jeśli zalogowany → przekierowanie do `/kanban`
+3. **Wprowadza dane logowania** → Walidacja przez `SignInManager`
+4. **Weryfikacja hasła** → Porównanie z zahashowanym hasłem w bazie
+5. **Tworzenie sesji** → Ustawienie cookie autentykacji (ASP.NET Core Identity Cookie)
+6. **Przekierowanie** → Do `/kanban` (domyślna strona po logowaniu)
+7. **Autoryzacja w komponentach** → Sprawdzenie roli użytkownika
+8. **Renderowanie UI** → Warunkowe wyświetlanie elementów na podstawie roli
+
+### Bezpieczeństwo
+
+- **Wymuszona autentykacja:** Wszystkie endpointy chronione atrybutem `[Authorize]`
+- **Brak self-registration:** Rejestracja wyłączona w konfiguracji Identity
+- **Secure Cookies:** Cookies autentykacji z flagami `HttpOnly`, `Secure`, `SameSite`
+- **Password Requirements:** Minimalne wymagania dla haseł (długość, złożoność)
+- **Session Management:** Automatyczne wylogowanie po wygaśnięciu sesji
+
+### Diagram architektury
+
+```mermaid
+graph TB
+    User[Użytkownik] -->|1. Request| App[Blazor Server App]
+    App -->|2. Sprawdź autentykację| AuthState[AuthenticationStateProvider]
+    AuthState -->|3. Niezalogowany| LoginPage[Strona Logowania<br/>/login]
+    LoginPage -->|4. Dane logowania| SignInMgr[SignInManager]
+    SignInMgr -->|5. Weryfikacja| IdentityDb[(IdentityDbContext<br/>SQL Server)]
+    IdentityDb -->|6. Zwróć użytkownika| SignInMgr
+    SignInMgr -->|7. Utwórz sesję| CookieAuth[Cookie Authentication]
+    CookieAuth -->|8. Przekieruj| KanbanPage[Strona Kanban<br/>/Kanban]
+    
+    KanbanPage -->|9. Sprawdź rolę| AuthState
+    AuthState -->|10. Manager| ManagerUI[Panel Managera<br/>+ Kanban]
+    AuthState -->|11. Operator| OperatorUI[Tylko Kanban]
+    
+    ManagerUI -->|12. Autoryzacja| AuthPolicy[Authorization Policies]
+    OperatorUI -->|13. Autoryzacja| AuthPolicy
+    AuthPolicy -->|14. Weryfikacja| IdentityDb
+    
+    SeedScript[Database Seeder] -->|Inicjalizacja| IdentityDb
+    SeedScript -.->|Tworzy| ManagerUser[Manager: menago/menago]
+    SeedScript -.->|Tworzy| OperatorUser[Operator: operator/operator]
+    
+    style LoginPage fill:#e1f5ff
+    style IdentityDb fill:#fff4e1
+    style CookieAuth fill:#ffe1f5
+    style ManagerUI fill:#e1ffe1
+    style OperatorUI fill:#ffe1e1
 ```
+
+### Implementacja techniczna
+
+#### Konfiguracja w Program.cs / Startup.cs
+
+```csharp
+// Dodanie Identity
+builder.Services.AddIdentity<IdentityUser, IdentityRole>(options => {
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 6;
+    options.SignIn.RequireConfirmedAccount = false;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+
+// Wymuszona autentykacja
+builder.Services.ConfigureApplicationCookie(options => {
+    options.LoginPath = "/login";
+    options.AccessDeniedPath = "/login";
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+});
+
+// Polityki autoryzacji
+builder.Services.AddAuthorization(options => {
+    options.AddPolicy("ManagerOnly", policy => 
+        policy.RequireRole("Manager"));
+});
+```
+
+#### Seedowanie użytkowników
+
+```csharp
+// W metodzie OnModelCreating lub dedykowanym seederze
+if (!context.Roles.Any()) {
+    context.Roles.Add(new IdentityRole { Name = "Manager" });
+    context.Roles.Add(new IdentityRole { Name = "Operator" });
+    context.SaveChanges();
+}
+
+if (!context.Users.Any()) {
+    var manager = new IdentityUser { UserName = "menago" };
+    var operator = new IdentityUser { UserName = "operator" };
+    // Hashowanie haseł i przypisanie ról
+}
+```
+
+### Integracja z Blazor
+
+- **CascadingAuthenticationState:** W `App.razor` lub głównym layout
+- **AuthorizeView:** W komponentach wymagających autoryzacji
+- **NavigationManager:** Przekierowania po logowaniu/wylogowaniu
+- **AuthenticationState:** Dostęp do informacji o użytkowniku w komponentach
+
+---
 ---
 
 **Dokument przygotowany:** 12 stycznia 2026  

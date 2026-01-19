@@ -11,17 +11,79 @@
 **Aby** korzystać z funkcji odpowiednich dla mojej roli
 
 **Kryteria akceptacji:**
-- Poprawne logowanie przez formularz logowania
-- Przekierowanie do widoku Kanban po zalogowaniu
+- Po uruchomieniu aplikacji użytkownik niezalogowany widzi ekran logowania
+- Formularz logowania z polami: username (login) i password
+- Poprawne logowanie przez formularz logowania (walidacja po stronie klienta i serwera)
+- Przekierowanie do strony głównej (`/`) po zalogowaniu, która przekierowuje do Kanban
 - Widoczna rola użytkownika w nagłówku aplikacji
 - Różne widoki menu w zależności od roli (Manager widzi Panel Managera, Operator tylko Kanban)
+- Użytkownicy niezalogowani nie mają dostępu do żadnych stron aplikacji poza logowaniem
+- Obsługa błędów: wyświetlanie komunikatu przy niepoprawnych danych logowania
 
 **Rekomendacje techniczne:**
 - Użyć ASP.NET Core Identity z cookie authentication
 - Strona logowania: `/login` z formularzem `MudTextField` (username/password)
-- Po zalogowaniu: `NavigationManager.NavigateTo("/kanban")`
+- Po zalogowaniu: `NavigationManager.NavigateTo("/")` (strona główna przekierowuje do `/kanban`)
 - W nagłówku wyświetlić nazwę użytkownika i przycisk wylogowania
 - Autoryzacja widoków przez `[Authorize]` i `[Authorize(Roles = "Manager")]`
+- Wszystkie strony poza `/login` wymagają autoryzacji (globalna konfiguracja w `Program.cs`)
+
+---
+
+## US-001a: Ekran logowania dla niezalogowanych użytkowników
+
+**Jako** korzystający z aplikacji  
+**Chcę** po uruchomieniu zobaczyć ekran logowania, jeżeli nie jestem zalogowany  
+**Aby** nieuprawnione osoby nie miały dostępu do funkcji aplikacji
+
+**Kryteria akceptacji:**
+- Użytkownik niezalogowany automatycznie przekierowywany na `/login`
+- Wszystkie próby dostępu do chronionych stron przekierowują na `/login`
+- Ekran logowania dostępny bez autoryzacji
+- Po zalogowaniu przekierowanie na stronę główną (`/`)
+
+**Rekomendacje techniczne:**
+- Globalna konfiguracja autoryzacji w `Program.cs`: `options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()`
+- Wyjątek dla `/login`: `[AllowAnonymous]` na stronie `Login.razor`
+- Przechwytywanie prób dostępu do chronionych stron i przekierowanie na `/login` z `returnUrl`
+
+---
+
+## US-001b: Przekierowanie po zalogowaniu
+
+**Jako** zalogowany użytkownik  
+**Chcę** po wpisaniu poprawnych danych być przekierowany na stronę główną (`/`)  
+**Aby** mogę korzystać z aplikacji zgodnie z uprawnieniami
+
+**Kryteria akceptacji:**
+- Po poprawnym logowaniu przekierowanie na `/` (strona główna)
+- Strona główna (`/`) automatycznie przekierowuje do `/kanban`
+- Sesja użytkownika jest utrzymywana (cookie authentication)
+- Użytkownik pozostaje zalogowany do czasu wylogowania lub wygaśnięcia sesji
+
+**Rekomendacje techniczne:**
+- Po logowaniu: `SignInManager.SignInAsync()` z opcją `isPersistent: false`
+- Przekierowanie: `NavigationManager.NavigateTo("/")` lub `returnUrl` jeśli dostępny
+- Strona `Index.razor` przekierowuje do `/kanban` przez `NavigationManager.NavigateTo("/kanban")`
+
+---
+
+## US-001c: Różne uprawnienia w zależności od roli
+
+**Jako** zalogowany użytkownik  
+**Chcę** mieć różne uprawnienia w zależności od roli ("manager" lub "operator")  
+**Aby** mogę korzystać z funkcji zgodnie z przydzieloną rolą
+
+**Kryteria akceptacji:**
+- Manager widzi: Kanban + Panel Managera (Dashboard, Utwórz zlecenie, Historia zleceń, Formaty produktów, Konfiguracja batchowania)
+- Operator widzi: tylko Kanban
+- Próba dostępu do funkcji Managera przez Operatora kończy się komunikatem o braku uprawnień
+- Rola użytkownika widoczna w nagłówku aplikacji
+
+**Rekomendacje techniczne:**
+- Autoryzacja przez `[Authorize(Roles = "Manager")]` na stronach Panelu Managera
+- Warunkowe wyświetlanie menu przez `IAuthorizationService.IsAuthorizedAsync(User, null, "Manager")`
+- Komunikaty błędów przez `MudSnackbar` przy próbie nieautoryzowanego dostępu
 
 ---
 

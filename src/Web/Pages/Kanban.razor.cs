@@ -27,7 +27,7 @@ public partial class Kanban : ComponentBase, IDisposable
         await LoadDataAsync();
         
         // Timer odświeżania licznika co 30 sekund
-        _refreshTimer = new Timer(async _ => await RefreshInProgressCount(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        _refreshTimer = new Timer(async _ => await InvokeAsync(async () => await RefreshInProgressCount()), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
     private async Task LoadDataAsync()

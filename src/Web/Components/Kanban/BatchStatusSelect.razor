@@ -3,18 +3,19 @@
 
 <MudSelect Value="@CurrentStatus"
            ValueChanged="OnSelectionChanged"
+           ValueExpression="@(() => CurrentStatus)"
            Label="Status"
            Variant="Variant.Outlined"
            T="BatchStatus"
            Disabled="@(Disabled || _saving)"
            Dense="true">
-    <MudSelectItem T="BatchStatus" Value="@BatchStatus.New" Disabled="@IsOptionDisabled(BatchStatus.New)">
+    <MudSelectItem Value="@BatchStatus.New" Disabled="@IsOptionDisabled(BatchStatus.New)">
         New
     </MudSelectItem>
-    <MudSelectItem T="BatchStatus" Value="@BatchStatus.InProgress" Disabled="@IsOptionDisabled(BatchStatus.InProgress)">
+    <MudSelectItem Value="@BatchStatus.InProgress" Disabled="@IsOptionDisabled(BatchStatus.InProgress)">
         InProgress
     </MudSelectItem>
-    <MudSelectItem T="BatchStatus" Value="@BatchStatus.Done" Disabled="@IsOptionDisabled(BatchStatus.Done)">
+    <MudSelectItem Value="@BatchStatus.Done" Disabled="@IsOptionDisabled(BatchStatus.Done)">
         Done
     </MudSelectItem>
 </MudSelect>

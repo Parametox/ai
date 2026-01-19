@@ -1,0 +1,34 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated != true)
+                    {
+                        <RedirectToLogin />
+                    }
+                    else
+                    {
+                        <PageTitle>Brak dostępu</PageTitle>
+                        <LayoutView Layout="@typeof(MainLayout)">
+                            <p role="alert">Nie masz uprawnień.</p>
+                        </LayoutView>
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Nie znaleziono</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Przepraszamy, nic tu nie ma.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

@@ -1,10 +1,10 @@
-# REST API Plan (Service Layer Contract for Blazor Server Monolith)
+# Service Layer Contract (Blazor Server Monolith)
 
-> Uwaga: W MVP nie wystawiamy osobnego publicznego REST API. Ten dokument opisuje **kontrakt operacji** w stylu REST (Method/URL + DTO), który mapuje się na **metody warstwy serwisów** wywoływane in-process przez Blazor Server.
->
+> Ten dokument opisuje **kontrakt warstwy serwisów** (C# metody + DTO) wywoływanych in-process przez komponenty Blazor Server. Serwisy są rejestrowane w DI i używają ASP.NET Core Identity do autoryzacji.
+
 > Docelowy plan serwisów (C# + DI + walidacje/RBAC) jest opisany w: `.ai/service-layer-plan.md`.
 
-## 1. Resources
+## 1. Resources (Entities)
 - **ProductFormat** → `product_formats`
 - **Order** → `orders`
 - **Project** → `projects`
@@ -13,493 +13,554 @@
 - **BatchAuditEvent** → `batch_audit_log`
 - **Identity (User/Role)** → ASP.NET Core Identity tables (e.g., `AspNetUsers`, `AspNetRoles`, …) *(infrastructure; not domain CRUD in MVP)*
 
-## 2. Endpoints
+## 2. Service Methods
 
-### Conventions (applies to all endpoints)
+### Conventions (applies to all service methods)
 - **Auth**: Cookie authentication via ASP.NET Core Identity.
 - **Authorization**:
-  - `Manager` (Manager): Kanban + Manager Panel + “Ship to customer”.
+  - `Manager` (Manager): Kanban + Manager Panel + "Ship to customer".
   - `Operator`: Kanban only.
-- **Error envelope (conceptual)**:
-
-```json
-{
-  "error": {
-    "code": "ValidationError",
-    "message": "Human readable summary",
-    "details": [{ "field": "quantity", "message": "Must be between 1 and 100000" }]
-  }
-}
-```
-
-- **Result codes mapping** (HTTP-like → service layer result):
-  - `200 OK`: success (query/update)
-  - `201 Created`: created
-  - `400 Bad Request`: malformed input
-  - `401 Unauthorized`: not logged in
-  - `403 Forbidden`: logged in but not allowed (role/policy)
-  - `404 Not Found`: resource missing
-  - `409 Conflict`: unique constraint / invalid state transition / concurrency conflict
-  - `422 Unprocessable Entity`: validation/business rule violation
-  - `500 Internal Server Error`: unexpected error
+- **Error handling**: Serwisy rzucają wyjątki, które są mapowane na odpowiednie komunikaty w UI:
+  - `NotFoundException`: zasób nie istnieje
+  - `UnauthorizedException`: użytkownik nie zalogowany
+  - `ForbiddenException`: użytkownik zalogowany, ale brak uprawnień (rola/policy)
+  - `ValidationException`: błędy walidacji (z listą błędów pól)
+  - `BusinessRuleException`: naruszenie reguły biznesowej
+  - `ConflictException`: konflikt (unique constraint / invalid state transition / concurrency conflict)
+- **Result types**: Metody zwracają DTO lub `Result<T>`/`Result` z informacją o sukcesie/błędzie (w zależności od wybranej strategii obsługi błędów).
 
 ---
 
 ### 2.1 Product formats (`product_formats`) — Manager Panel
 
 #### List product formats
-- **Method**: GET
-- **URL**: `/product-formats`
+- **Service**: `IProductFormatService`
+- **Method**: `Task<PagedResult<ProductFormatDto>> GetProductFormatsAsync(GetProductFormatsQuery query, CancellationToken ct = default)`
 - **Description**: List formats for dropdowns and administration.
-- **Query params**:
-  - `isActive` (bool, optional)
-  - `q` (string, optional) – search by name (starts-with/contains)
-  - `page` (int, optional), `pageSize` (int, optional)
-- **Response (200)**:
+- **Query parameters**:
+  - `IsActive` (bool?, optional)
+  - `SearchTerm` (string, optional) – search by name (starts-with/contains)
+  - `Page` (int, optional), `PageSize` (int, optional)
+- **Response DTO**:
 
-```json
+```csharp
+public class ProductFormatDto
 {
-  "items": [
-    { "id": 1, "name": "A6 (10x15 cm)", "isActive": true, "createdAt": "2026-01-12T10:00:00Z" }
-  ],
-  "page": 1,
-  "pageSize": 50,
-  "total": 3
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class PagedResult<T>
+{
+    public List<T> Items { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int Total { get; set; }
 }
 ```
 
-- **Errors**: `401`, `403` *(Manager-only for full list; optional: allow Operator to list active formats only for UI lookups)*.
+- **Authorization**: `[Authorize(Roles = "Manager")]` *(optional: allow Operator to list active formats only for UI lookups)*
+- **Exceptions**: `UnauthorizedException`, `ForbiddenException`
 
 #### Create product format
-- **Method**: POST
-- **URL**: `/product-formats`
+- **Service**: `IProductFormatService`
+- **Method**: `Task<ProductFormatDto> CreateProductFormatAsync(CreateProductFormatCommand command, CancellationToken ct = default)`
 - **Description**: Create new product format.
-- **Request**:
+- **Command**:
 
-```json
-{ "name": "A5 (14.8x21 cm)", "isActive": true }
+```csharp
+public class CreateProductFormatCommand
+{
+    public string Name { get; set; }
+    public bool IsActive { get; set; }
+}
 ```
 
-- **Response (201)**:
-
-```json
-{ "id": 4, "name": "A5 (14.8x21 cm)", "isActive": true, "createdAt": "2026-01-15T12:00:00Z" }
-```
-
-- **Errors**:
-  - `409`: name already exists (`uq_product_formats_name`)
-  - `422`: invalid name (empty/too long per application constraints)
+- **Response**: `ProductFormatDto`
+- **Exceptions**:
+  - `ConflictException`: name already exists (`uq_product_formats_name`)
+  - `ValidationException`: invalid name (empty/too long per application constraints)
+  - `ForbiddenException`: Operator not allowed
 
 #### Update product format
-- **Method**: PUT
-- **URL**: `/product-formats/{id}`
+- **Service**: `IProductFormatService`
+- **Method**: `Task<ProductFormatDto> UpdateProductFormatAsync(int id, UpdateProductFormatCommand command, CancellationToken ct = default)`
 - **Description**: Rename / activate-deactivate.
-- **Request**:
+- **Command**:
 
-```json
-{ "name": "Square (15x15 cm)", "isActive": true }
+```csharp
+public class UpdateProductFormatCommand
+{
+    public string Name { get; set; }
+    public bool IsActive { get; set; }
+}
 ```
 
-- **Response (200)**:
-
-```json
-{ "id": 2, "name": "Square (15x15 cm)", "isActive": true, "createdAt": "2026-01-12T10:00:00Z" }
-```
-
-- **Errors**: `404`, `409`, `422`.
+- **Response**: `ProductFormatDto`
+- **Exceptions**: `NotFoundException`, `ConflictException`, `ValidationException`, `ForbiddenException`
 
 #### Delete product format (optional)
-- **Method**: DELETE
-- **URL**: `/product-formats/{id}`
+- **Service**: `IProductFormatService`
+- **Method**: `Task DeleteProductFormatAsync(int id, CancellationToken ct = default)`
 - **Description**: For MVP prefer **soft deactivation** (`is_active=false`) to avoid FK issues with orders.
-- **Response (204)**: no content
-- **Errors**:
-  - `409`: cannot delete due to existing orders referencing the format
+- **Response**: void
+- **Exceptions**:
+  - `ConflictException`: cannot delete due to existing orders referencing the format
+  - `NotFoundException`
 
 ---
 
 ### 2.2 Orders (`orders`) — Manager Panel
 
 #### Create order (and auto-create project + batches)
-- **Method**: POST
-- **URL**: `/orders`
+- **Service**: `IOrderService`
+- **Method**: `Task<CreateOrderResult> CreateOrderAsync(CreateOrderCommand command, CancellationToken ct = default)`
 - **Description**: Create an order; system creates a project and batches based on active split rules.
-- **Request**:
+- **Command**:
 
-```json
+```csharp
+public class CreateOrderCommand
 {
-  "orderNumber": "ORD-2026-0001",
-  "quantity": 200,
-  "productFormatId": 1,
-  "dueDate": "2026-02-01"
+    public string OrderNumber { get; set; }
+    public int Quantity { get; set; }
+    public int ProductFormatId { get; set; }
+    public DateTime DueDate { get; set; }
 }
 ```
 
-- **Response (201)**:
+- **Response**:
 
-```json
+```csharp
+public class CreateOrderResult
 {
-  "order": {
-    "id": 10,
-    "orderNumber": "ORD-2026-0001",
-    "quantity": 200,
-    "productFormatId": 1,
-    "dueDate": "2026-02-01",
-    "createdAt": "2026-01-15T12:00:00Z"
-  },
-  "project": {
-    "id": 10,
-    "orderId": 10,
-    "projectNumber": "PRJ-2026-0001",
-    "isCompleted": false,
-    "createdAt": "2026-01-15T12:00:00Z"
-  },
-  "batches": [
-    { "id": 100, "projectId": 10, "batchNo": 1, "quantity": 60, "status": "New", "stage": 1, "createdAt": "2026-01-15T12:00:00Z", "updatedAt": "2026-01-15T12:00:00Z" },
-    { "id": 101, "projectId": 10, "batchNo": 2, "quantity": 60, "status": "New", "stage": 1, "createdAt": "2026-01-15T12:00:00Z", "updatedAt": "2026-01-15T12:00:00Z" },
-    { "id": 102, "projectId": 10, "batchNo": 3, "quantity": 60, "status": "New", "stage": 1, "createdAt": "2026-01-15T12:00:00Z", "updatedAt": "2026-01-15T12:00:00Z" },
-    { "id": 103, "projectId": 10, "batchNo": 4, "quantity": 20, "status": "New", "stage": 1, "createdAt": "2026-01-15T12:00:00Z", "updatedAt": "2026-01-15T12:00:00Z" }
-  ]
+    public OrderDto Order { get; set; }
+    public ProjectDto Project { get; set; }
+    public List<BatchDto> Batches { get; set; }
 }
 ```
 
-- **Errors**:
-  - `403`: Operator not allowed
-  - `409`: `orderNumber` already exists (`uq_orders_order_number`)
-  - `422`: validation failures (quantity range; due date rule; split rules missing/invalid; resulting batch sizes invalid)
+- **Exceptions**:
+  - `ForbiddenException`: Operator not allowed
+  - `ConflictException`: `orderNumber` already exists (`uq_orders_order_number`)
+  - `ValidationException`: validation failures (quantity range; due date rule; split rules missing/invalid; resulting batch sizes invalid)
 
 #### List orders (history)
-- **Method**: GET
-- **URL**: `/orders`
+- **Service**: `IOrderService`
+- **Method**: `Task<PagedResult<OrderListItemDto>> GetOrdersAsync(GetOrdersQuery query, CancellationToken ct = default)`
 - **Description**: List orders for history view (Manager Panel).
-- **Query params**:
-  - `q` (string, optional): orderNumber/projectNumber search
-  - `dueFrom`, `dueTo` (date, optional)
-  - `page`, `pageSize`
-- **Response (200)**:
-
-```json
-{
-  "items": [
-    { "id": 10, "orderNumber": "ORD-2026-0001", "quantity": 200, "dueDate": "2026-02-01", "productFormatName": "A6 (10x15 cm)", "createdAt": "2026-01-15T12:00:00Z" }
-  ],
-  "page": 1,
-  "pageSize": 50,
-  "total": 1
-}
-```
-
-- **Errors**: `401`, `403` (Manager-only).
+- **Query parameters**:
+  - `SearchTerm` (string, optional): orderNumber/projectNumber search
+  - `DueFrom` (DateTime?, optional), `DueTo` (DateTime?, optional)
+  - `Page` (int, optional), `PageSize` (int, optional)
+- **Response**: `PagedResult<OrderListItemDto>`
+- **Authorization**: `[Authorize(Roles = "Manager")]`
+- **Exceptions**: `UnauthorizedException`, `ForbiddenException`
 
 #### Get order details
-- **Method**: GET
-- **URL**: `/orders/{id}`
+- **Service**: `IOrderService`
+- **Method**: `Task<OrderDetailsDto> GetOrderDetailsAsync(int id, CancellationToken ct = default)`
 - **Description**: Order + linked project summary.
-- **Response (200)**:
+- **Response**:
 
-```json
+```csharp
+public class OrderDetailsDto
 {
-  "id": 10,
-  "orderNumber": "ORD-2026-0001",
-  "quantity": 200,
-  "dueDate": "2026-02-01",
-  "productFormat": { "id": 1, "name": "A6 (10x15 cm)" },
-  "project": { "id": 10, "projectNumber": "PRJ-2026-0001", "isCompleted": false }
+    public int Id { get; set; }
+    public string OrderNumber { get; set; }
+    public int Quantity { get; set; }
+    public DateTime DueDate { get; set; }
+    public ProductFormatDto ProductFormat { get; set; }
+    public ProjectSummaryDto Project { get; set; }
 }
 ```
 
-- **Errors**: `404`, `401`, `403` (Manager-only).
+- **Authorization**: `[Authorize(Roles = "Manager")]`
+- **Exceptions**: `NotFoundException`, `UnauthorizedException`, `ForbiddenException`
 
 ---
 
 ### 2.3 Projects (`projects`) — Kanban + Manager actions
 
 #### List active projects (optional)
-- **Method**: GET
-- **URL**: `/projects`
+- **Service**: `IProjectService`
+- **Method**: `Task<PagedResult<ProjectListItemDto>> GetActiveProjectsAsync(GetProjectsQuery query, CancellationToken ct = default)`
 - **Description**: Active projects for quick navigation. Kanban is primarily batch-based.
-- **Query params**:
-  - `isCompleted=false` (default)
-  - `page`, `pageSize`
-- **Response (200)**:
-
-```json
-{
-  "items": [
-    { "id": 10, "projectNumber": "PRJ-2026-0001", "orderNumber": "ORD-2026-0001", "dueDate": "2026-02-01", "isCompleted": false }
-  ],
-  "page": 1,
-  "pageSize": 50,
-  "total": 1
-}
-```
+- **Query parameters**:
+  - `IsCompleted` (bool?, default: false)
+  - `Page` (int, optional), `PageSize` (int, optional)
+- **Response**: `PagedResult<ProjectListItemDto>`
 
 #### Get project details (includes batches + readiness to ship)
-- **Method**: GET
-- **URL**: `/projects/{id}`
+- **Service**: `IProjectService`
+- **Method**: `Task<ProjectDetailsDto> GetProjectDetailsAsync(int id, CancellationToken ct = default)`
 - **Description**: Project details view (Operator/Manager).
-- **Response (200)**:
+- **Response**:
 
-```json
+```csharp
+public class ProjectDetailsDto
 {
-  "id": 10,
-  "projectNumber": "PRJ-2026-0001",
-  "order": { "id": 10, "orderNumber": "ORD-2026-0001", "quantity": 200, "dueDate": "2026-02-01", "productFormatName": "A6 (10x15 cm)" },
-  "isCompleted": false,
-  "completion": { "canShip": false, "reason": "All batches must be at stage=5 (Shipping) and status=Done." },
-  "batches": [
-    { "id": 100, "batchNo": 1, "quantity": 60, "status": "InProgress", "stage": 2, "progressPercent": 40, "updatedAt": "2026-01-15T12:10:00Z" }
-  ]
+    public int Id { get; set; }
+    public string ProjectNumber { get; set; }
+    public OrderSummaryDto Order { get; set; }
+    public bool IsCompleted { get; set; }
+    public ProjectCompletionDto Completion { get; set; }
+    public List<BatchSummaryDto> Batches { get; set; }
+}
+
+public class ProjectCompletionDto
+{
+    public bool CanShip { get; set; }
+    public string Reason { get; set; }
 }
 ```
 
-- **Errors**: `404`, `401`.
+- **Exceptions**: `NotFoundException`, `UnauthorizedException`
 
 #### Ship project to customer (mark completed)
-- **Method**: POST
-- **URL**: `/projects/{id}/ship`
-- **Description**: Manager action “Wyślij do klienta”. Marks project completed and removes it from active Kanban.
-- **Request** (optional):
+- **Service**: `IProjectService`
+- **Method**: `Task<ProjectDto> ShipProjectAsync(int id, ShipProjectCommand command, CancellationToken ct = default)`
+- **Description**: Manager action "Wyślij do klienta". Marks project completed and removes it from active Kanban.
+- **Command** (optional):
 
-```json
-{ "note": "Optional shipping note" }
-```
-
-- **Response (200)**:
-
-```json
+```csharp
+public class ShipProjectCommand
 {
-  "id": 10,
-  "isCompleted": true,
-  "completedAt": "2026-01-15T13:00:00Z",
-  "completedByUserId": "identity-user-id"
+    public string Note { get; set; } // Optional shipping note
 }
 ```
 
-- **Errors**:
-  - `403`: Operator not allowed
-  - `409` / `422`: cannot ship because not all batches meet criteria
-  - `404`: project not found
+- **Response**: `ProjectDto` (with `IsCompleted = true`, `CompletedAt`, `CompletedByUserId`)
+- **Authorization**: `[Authorize(Roles = "Manager")]`
+- **Exceptions**:
+  - `ForbiddenException`: Operator not allowed
+  - `ConflictException` / `BusinessRuleException`: cannot ship because not all batches meet criteria
+  - `NotFoundException`: project not found
 
 ---
 
 ### 2.4 Batches (`batches`) — Kanban operations
 
 #### Kanban list (active batches)
-- **Method**: GET
-- **URL**: `/kanban/batches`
+- **Service**: `IKanbanService` lub `IBatchService`
+- **Method**: `Task<KanbanBatchesResult> GetKanbanBatchesAsync(GetKanbanBatchesQuery query, CancellationToken ct = default)`
 - **Description**: Main Kanban read model: batches joined with order/project context (active projects only).
-- **Query params**:
-  - `status` (New|InProgress|Done, optional)
-  - `stage` (1..5, optional)
-  - `q` (string, optional): orderNumber/projectNumber
-  - `sort` (e.g., `dueDateAsc`, `dueDateDesc`, `updatedAtDesc`, optional)
-  - `page`, `pageSize`
-- **Response (200)**:
+- **Query parameters**:
+  - `Status` (BatchStatus?, optional): New|InProgress|Done
+  - `Stage` (int?, optional): 1..5
+  - `SearchTerm` (string, optional): orderNumber/projectNumber
+  - `SortBy` (string, optional): e.g., `DueDateAsc`, `DueDateDesc`, `UpdatedAtDesc`
+  - `Page` (int, optional), `PageSize` (int, optional)
+- **Response**:
 
-```json
+```csharp
+public class KanbanBatchesResult
 {
-  "items": [
-    {
-      "batchId": 100,
-      "projectId": 10,
-      "projectNumber": "PRJ-2026-0001",
-      "orderNumber": "ORD-2026-0001",
-      "dueDate": "2026-02-01",
-      "batchNo": 1,
-      "quantity": 60,
-      "status": "InProgress",
-      "stage": 2,
-      "progressPercent": 40,
-      "updatedAt": "2026-01-15T12:10:00Z"
-    }
-  ],
-  "inProgressCount": 21,
-  "warnings": [
-    { "code": "InProgressSoftLimitExceeded", "message": "InProgress batches count is 21 (soft limit is 20)." }
-  ],
-  "page": 1,
-  "pageSize": 50,
-  "total": 1
+    public List<KanbanBatchDto> Items { get; set; }
+    public int InProgressCount { get; set; }
+    public List<WarningDto> Warnings { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int Total { get; set; }
+}
+
+public class KanbanBatchDto
+{
+    public int BatchId { get; set; }
+    public int ProjectId { get; set; }
+    public string ProjectNumber { get; set; }
+    public string OrderNumber { get; set; }
+    public DateTime DueDate { get; set; }
+    public int BatchNo { get; set; }
+    public int Quantity { get; set; }
+    public BatchStatus Status { get; set; }
+    public int Stage { get; set; }
+    public int ProgressPercent { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }
 ```
 
-- **Errors**: `401`.
+- **Exceptions**: `UnauthorizedException`
 
 #### Update batch status
-- **Method**: PATCH
-- **URL**: `/batches/{id}/status`
+- **Service**: `IBatchService`
+- **Method**: `Task<UpdateBatchStatusResult> UpdateBatchStatusAsync(int id, UpdateBatchStatusCommand command, CancellationToken ct = default)`
 - **Description**: Change status (New → InProgress → Done). Persists audit log entry.
-- **Request**:
+- **Command**:
 
-```json
-{ "newStatus": "InProgress" }
-```
-
-- **Response (200)**:
-
-```json
+```csharp
+public class UpdateBatchStatusCommand
 {
-  "batchId": 100,
-  "oldStatus": "New",
-  "newStatus": "InProgress",
-  "stage": 2,
-  "updatedAt": "2026-01-15T12:10:00Z",
-  "inProgressCount": 21,
-  "warnings": [
-    { "code": "InProgressSoftLimitExceeded", "message": "InProgress batches count is 21 (soft limit is 20)." }
-  ]
+    public BatchStatus NewStatus { get; set; }
 }
 ```
 
-- **Errors**:
-  - `404`: batch not found
-  - `409` / `422`: invalid status transition (business rule)
-  - `409`: concurrency conflict (optional, via `xmin`/ETag-like mechanism)
+- **Response**:
+
+```csharp
+public class UpdateBatchStatusResult
+{
+    public int BatchId { get; set; }
+    public BatchStatus OldStatus { get; set; }
+    public BatchStatus NewStatus { get; set; }
+    public int Stage { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public int InProgressCount { get; set; }
+    public List<WarningDto> Warnings { get; set; }
+}
+```
+
+- **Exceptions**:
+  - `NotFoundException`: batch not found
+  - `ConflictException` / `BusinessRuleException`: invalid status transition (business rule)
+  - `ConflictException`: concurrency conflict (optional, via `xmin`/ETag-like mechanism)
 
 #### Update batch stage
-- **Method**: PATCH
-- **URL**: `/batches/{id}/stage`
+- **Service**: `IBatchService`
+- **Method**: `Task<UpdateBatchStageResult> UpdateBatchStageAsync(int id, UpdateBatchStageCommand command, CancellationToken ct = default)`
 - **Description**: Move stage forward only (1..5). Persists audit log entry.
-- **Request**:
+- **Command**:
 
-```json
-{ "newStage": 3 }
+```csharp
+public class UpdateBatchStageCommand
+{
+    public int NewStage { get; set; }
+}
 ```
 
-- **Response (200)**:
+- **Response**:
 
-```json
-{ "batchId": 100, "oldStage": 2, "newStage": 3, "status": "InProgress", "progressPercent": 60, "updatedAt": "2026-01-15T12:20:00Z" }
+```csharp
+public class UpdateBatchStageResult
+{
+    public int BatchId { get; set; }
+    public int OldStage { get; set; }
+    public int NewStage { get; set; }
+    public BatchStatus Status { get; set; }
+    public int ProgressPercent { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
 ```
 
-- **Errors**:
-  - `404`
-  - `422`: newStage out of range (DB constraint is 1..5)
-  - `409` / `422`: stage cannot move backwards (business rule)
+- **Exceptions**:
+  - `NotFoundException`
+  - `ValidationException`: newStage out of range (DB constraint is 1..5)
+  - `ConflictException` / `BusinessRuleException`: stage cannot move backwards (business rule)
 
 ---
 
 ### 2.5 Batch split rules (`batch_split_rules`) — Manager Panel
 
 #### List split rules
-- **Method**: GET
-- **URL**: `/batch-split-rules`
+- **Service**: `IBatchSplitRuleService`
+- **Method**: `Task<List<BatchSplitRuleDto>> GetBatchSplitRulesAsync(bool? isActive = null, CancellationToken ct = default)`
 - **Description**: Read and manage active rules. Applies only to newly created orders.
-- **Query params**: `isActive` (optional)
-- **Response (200)**:
+- **Response**:
 
-```json
+```csharp
+public class BatchSplitRuleDto
 {
-  "items": [
-    { "id": 1, "minQty": 1, "maxQty": 200, "percent": 30.0, "minBatchSize": 1, "maxBatchesPerProject": null, "isActive": true, "createdAt": "2026-01-12T10:00:00Z" }
-  ]
+    public int Id { get; set; }
+    public int MinQty { get; set; }
+    public int? MaxQty { get; set; }
+    public decimal Percent { get; set; }
+    public int MinBatchSize { get; set; }
+    public int? MaxBatchesPerProject { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
 }
 ```
 
-#### Create / update split rule
-- **Method**: POST / PUT
-- **URL**: `/batch-split-rules` / `/batch-split-rules/{id}`
+#### Create split rule
+- **Service**: `IBatchSplitRuleService`
+- **Method**: `Task<BatchSplitRuleDto> CreateBatchSplitRuleAsync(CreateBatchSplitRuleCommand command, CancellationToken ct = default)`
 - **Description**: Manage thresholds and percent. Must prevent overlaps among active ranges.
-- **Request**:
+- **Command**:
 
-```json
-{ "minQty": 201, "maxQty": 500, "percent": 25.0, "minBatchSize": 1, "maxBatchesPerProject": null, "isActive": true }
+```csharp
+public class CreateBatchSplitRuleCommand
+{
+    public int MinQty { get; set; }
+    public int? MaxQty { get; set; }
+    public decimal Percent { get; set; }
+    public int MinBatchSize { get; set; }
+    public int? MaxBatchesPerProject { get; set; }
+    public bool IsActive { get; set; }
+}
 ```
 
-- **Response (200/201)**:
+- **Response**: `BatchSplitRuleDto`
+- **Authorization**: `[Authorize(Roles = "Manager")]`
+- **Exceptions**:
+  - `ValidationException`: invalid numeric values (minQty>=1, percent (0..100], etc.)
+  - `ConflictException` / `BusinessRuleException`: overlaps an existing active rule range (application validation)
 
-```json
-{ "id": 2, "minQty": 201, "maxQty": 500, "percent": 25.0, "minBatchSize": 1, "maxBatchesPerProject": null, "isActive": true, "createdAt": "2026-01-15T12:00:00Z" }
-```
-
-- **Errors**:
-  - `422`: invalid numeric values (minQty>=1, percent (0..100], etc.)
-  - `409` / `422`: overlaps an existing active rule range (application validation)
+#### Update split rule
+- **Service**: `IBatchSplitRuleService`
+- **Method**: `Task<BatchSplitRuleDto> UpdateBatchSplitRuleAsync(int id, UpdateBatchSplitRuleCommand command, CancellationToken ct = default)`
+- **Description**: Update thresholds and percent. Must prevent overlaps among active ranges.
+- **Command**: `UpdateBatchSplitRuleCommand` (same structure as `CreateBatchSplitRuleCommand`)
+- **Response**: `BatchSplitRuleDto`
+- **Authorization**: `[Authorize(Roles = "Manager")]`
+- **Exceptions**: `NotFoundException`, `ValidationException`, `ConflictException` / `BusinessRuleException`
 
 #### Deactivate split rule
-- **Method**: PATCH
-- **URL**: `/batch-split-rules/{id}/deactivate`
+- **Service**: `IBatchSplitRuleService`
+- **Method**: `Task<BatchSplitRuleDto> DeactivateBatchSplitRuleAsync(int id, CancellationToken ct = default)`
 - **Description**: Sets `is_active=false`.
-- **Response (200)**: updated rule
-- **Errors**: `404`
+- **Response**: `BatchSplitRuleDto` (updated rule)
+- **Authorization**: `[Authorize(Roles = "Manager")]`
+- **Exceptions**: `NotFoundException`
 
 ---
 
 ### 2.6 Audit log (`batch_audit_log`) — Manager Panel / Project view
 
 #### List audit events for a batch
-- **Method**: GET
-- **URL**: `/batches/{id}/audit`
+- **Service**: `IBatchAuditService`
+- **Method**: `Task<PagedResult<BatchAuditEventDto>> GetBatchAuditEventsAsync(int batchId, GetBatchAuditEventsQuery query, CancellationToken ct = default)`
 - **Description**: Show who changed status/stage and when.
-- **Query params**: `page`, `pageSize`
-- **Response (200)**:
+- **Query parameters**:
+  - `Page` (int, optional), `PageSize` (int, optional)
+- **Response**:
 
-```json
+```csharp
+public class BatchAuditEventDto
 {
-  "items": [
-    {
-      "id": 1000,
-      "batchId": 100,
-      "changedAt": "2026-01-15T12:10:00Z",
-      "changedByUserId": "identity-user-id",
-      "oldStatus": "New",
-      "newStatus": "InProgress",
-      "oldStage": 1,
-      "newStage": 2
-    }
-  ],
-  "page": 1,
-  "pageSize": 50,
-  "total": 1
+    public int Id { get; set; }
+    public int BatchId { get; set; }
+    public DateTime ChangedAt { get; set; }
+    public string ChangedByUserId { get; set; }
+    public BatchStatus? OldStatus { get; set; }
+    public BatchStatus? NewStatus { get; set; }
+    public int? OldStage { get; set; }
+    public int? NewStage { get; set; }
 }
 ```
 
-- **Errors**: `404`, `401`, `403` *(optional: allow Operator to view audit for transparency; otherwise Manager-only)*.
+- **Authorization**: `[Authorize]` *(optional: allow Operator to view audit for transparency; otherwise Manager-only)*
+- **Exceptions**: `NotFoundException`, `UnauthorizedException`, `ForbiddenException`
 
 ---
 
 ### 2.7 Dashboard (Manager Panel)
 
 #### Get dashboard metrics
-- **Method**: GET
-- **URL**: `/dashboard`
+- **Service**: `IDashboardService`
+- **Method**: `Task<DashboardMetricsDto> GetDashboardMetricsAsync(CancellationToken ct = default)`
 - **Description**: Operational metrics:
   - counts by status (New/InProgress/Done)
   - counts by stage (1..5)
   - urgent orders list (due < 7 days)
   - average order/project lead time *(if data available)*
-- **Response (200)**:
+- **Response**:
 
-```json
+```csharp
+public class DashboardMetricsDto
 {
-  "countsByStatus": { "New": 10, "InProgress": 21, "Done": 5 },
-  "countsByStage": { "1": 3, "2": 8, "3": 12, "4": 9, "5": 4 },
-  "urgentOrders": [
-    { "orderId": 10, "orderNumber": "ORD-2026-0001", "dueDate": "2026-01-20", "projectId": 10, "projectNumber": "PRJ-2026-0001" }
-  ],
-  "warnings": [
-    { "code": "InProgressSoftLimitExceeded", "message": "InProgress batches count is 21 (soft limit is 20)." }
-  ]
+    public Dictionary<BatchStatus, int> CountsByStatus { get; set; }
+    public Dictionary<int, int> CountsByStage { get; set; }
+    public List<UrgentOrderDto> UrgentOrders { get; set; }
+    public List<WarningDto> Warnings { get; set; }
+}
+
+public class UrgentOrderDto
+{
+    public int OrderId { get; set; }
+    public string OrderNumber { get; set; }
+    public DateTime DueDate { get; set; }
+    public int ProjectId { get; set; }
+    public string ProjectNumber { get; set; }
 }
 ```
 
-- **Errors**: `401`, `403` (Manager-only).
+- **Authorization**: `[Authorize(Roles = "Manager")]`
+- **Exceptions**: `UnauthorizedException`, `ForbiddenException`
 
 ---
 
 ## 3. Authentication and authorization
-- **Authentication mechanism**: ASP.NET Core Identity with **cookie authentication** (Blazor Server friendly).
-- **Roles**:
-  - `Manager`: full access to Manager Panel (CRUD formats, CRUD split rules, dashboard, order creation/history) and project shipping.
-  - `Operator`: Kanban read/write on batches (stage/status changes) and project details read.
-- **Authorization boundaries**:
-  - **Manager-only operations**: create order; manage formats; manage split rules; ship project; dashboard; history views.
-  - **Shared operations**: Kanban list; batch status/stage updates; project details.
-- **Implementation notes**:
-  - Use `[Authorize]` and `[Authorize(Roles="Manager")]`/policies at service entry points (and/or pages/components).
-  - Prefer **policy-based checks** for fine-grained rules (e.g., `CanShipProject`).
-  - Protect state-changing operations with standard ASP.NET Core antiforgery patterns where applicable.
+
+### 3.1. Authentication mechanism
+- **Mechanizm**: ASP.NET Core Identity with **cookie authentication** (Blazor Server friendly).
+- **Logowanie**: Włączone (`enabled="true"`). Użytkownicy po uruchomieniu aplikacji zawsze trafiają na ekran logowania.
+- **Rejestracja**: Wyłączona (`enabled="false"`). Brak self-registration; konta tworzone przez skrypt seedujący.
+- **Wymuszona autentykacja**: `forced-authentication="true"`. Użytkownicy niezalogowani nie mają dostępu do żadnych stron aplikacji poza logowaniem.
+- **Przekierowanie po logowaniu**: Domyślnie na stronę główną (`/`), która przekierowuje do Kanban.
+
+### 3.2. Roles
+- **Manager**: full access to Manager Panel (CRUD formats, CRUD split rules, dashboard, order creation/history) and project shipping.
+- **Operator**: Kanban read/write on batches (stage/status changes) and project details read.
+
+### 3.3. Authorization boundaries
+- **Manager-only operations**: create order; manage formats; manage split rules; ship project; dashboard; history views.
+- **Shared operations**: Kanban list; batch status/stage updates; project details.
+- **Public operations**: login page only (`/login`).
+
+### 3.4. Implementation notes
+- Use `[Authorize]` and `[Authorize(Roles="Manager")]`/policies at **service methods** (lub w komponentach Blazor).
+- Prefer **policy-based checks** for fine-grained rules (e.g., `CanShipProject`).
+- Serwisy mogą używać `IHttpContextAccessor` do dostępu do `HttpContext.User` dla autoryzacji programowej.
+- Protect state-changing operations with standard ASP.NET Core antiforgery patterns where applicable (w komponentach Blazor).
+- Global fallback policy: `RequireAuthenticatedUser()` dla wszystkich stron poza `/login`.
+
+---
+
+### 3.5. Authentication service methods
+
+#### Login
+- **Service**: `IAuthService` lub `SignInManager<TUser>`
+- **Method**: `Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken ct = default)`
+- **Description**: Logowanie użytkownika przez username i password. Tworzy sesję cookie.
+- **Request**:
+
+```csharp
+public class LoginRequest
+{
+    public string Username { get; set; }
+    public string Password { get; set; }
+}
+```
+
+- **Response**:
+
+```csharp
+public class AuthResult
+{
+    public bool IsSuccess { get; set; }
+    public string? ErrorMessage { get; set; }
+    public UserDto? User { get; set; }
+}
+
+public class UserDto
+{
+    public string Id { get; set; }
+    public string Username { get; set; }
+    public string Role { get; set; } // "Manager" lub "Operator"
+}
+```
+
+- **Authorization**: `[AllowAnonymous]` (dostęp bez logowania)
+- **Exceptions**:
+  - `UnauthorizedException`: nieprawidłowa nazwa użytkownika lub hasło
+  - `ValidationException`: puste pola username/password
+
+#### Get current user
+- **Service**: `IAuthService` lub `UserManager<TUser>`
+- **Method**: `Task<UserDto?> GetCurrentUserAsync(CancellationToken ct = default)`
+- **Description**: Zwraca aktualnie zalogowanego użytkownika i jego uprawnienia na podstawie sesji/contextu.
+- **Response**: `UserDto` (z Id, Username, Role) lub `null` jeśli użytkownik niezalogowany
+- **Authorization**: `[Authorize]` (wymaga zalogowania)
+- **Exceptions**: `UnauthorizedException` jeśli użytkownik niezalogowany
+
+#### Logout
+- **Service**: `IAuthService` lub `SignInManager<TUser>`
+- **Method**: `Task LogoutAsync(CancellationToken ct = default)`
+- **Description**: Wylogowanie użytkownika i wyczyszczenie sesji cookie.
+- **Response**: void
+- **Authorization**: `[Authorize]` (wymaga zalogowania)
+- **Exceptions**: Brak (operacja zawsze się powodzi, nawet jeśli użytkownik już wylogowany)
 
 ## 4. Validation and business logic
 
@@ -555,7 +616,7 @@
 
 ### 4.2 Core business rules (PRD-driven)
 - **Kanban scope**: show only projects where `projects.is_completed=false` (active work only).
-- **Shipping gate (“Ship to customer”)**:
+- **Shipping gate ("Ship to customer")**:
   - Manager-only action.
   - Allowed only when **all project batches** satisfy:
     - `stage = 5 (Shipping)` **and**
@@ -565,4 +626,3 @@
   - Kanban list should use **projection** (single query join) rather than per-row loads.
   - Use partial indexes for active projects and `InProgress` counting where applicable.
   - `InProgress` count should be computed via aggregate query (and can be cached briefly per request/UI refresh).
-

@@ -341,3 +341,51 @@ public sealed record DashboardDto(
     IReadOnlyList<WarningDto> Warnings
 );
 
+// ----------------------------
+// Authentication / Authorization
+// ----------------------------
+
+/// <summary>
+/// Typ wyliczeniowy ról użytkownika w systemie.
+/// </summary>
+public enum UserRole
+{
+    Manager = 0,
+    Operator = 1
+}
+
+/// <summary>
+/// DTO użytkownika z podstawowymi informacjami i rolą.
+/// </summary>
+public sealed record UserDto(
+    string Id,
+    string Username,
+    UserRole Role
+);
+
+/// <summary>
+/// Request do logowania użytkownika (username/password).
+/// </summary>
+public sealed record LoginRequest(
+    string Username,
+    string Password
+);
+
+/// <summary>
+/// Response z logowania zawierający informacje o użytkowniku i statusie operacji.
+/// </summary>
+public sealed record AuthResult(
+    bool IsSuccess,
+    string? ErrorMessage,
+    UserDto? User
+);
+
+/// <summary>
+/// Response z informacjami o sesji użytkownika (opcjonalnie, jeśli potrzebne dodatkowe pola).
+/// </summary>
+public sealed record AuthResponse(
+    string UserId,
+    string Username,
+    UserRole Role,
+    DateTimeOffset ExpiresAt
+);

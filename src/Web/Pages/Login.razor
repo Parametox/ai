@@ -1,0 +1,63 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Authorization
+@using MudBlazor
+@using KanbanLite.Web.Services
+
+<PageTitle>Logowanie - KanbanLite</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">
+                KanbanLite
+            </MudText>
+            <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-6" Color="Color.Secondary">
+                Zaloguj się do systemu
+            </MudText>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4" Dismissible="true" OnClose="ClearError">
+                    @_errorMessage
+                </MudAlert>
+            }
+
+            <EditForm Model="_model" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+                <MudTextField @bind-Value="_model.Username"
+                              Label="Nazwa użytkownika"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Nazwa użytkownika jest wymagana"
+                              FullWidth="true"
+                              Class="mb-4"
+                              Immediate="true" />
+                <MudTextField @bind-Value="_model.Password"
+                              Label="Hasło"
+                              InputType="InputType.Password"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Hasło jest wymagane"
+                              FullWidth="true"
+                              Class="mb-4" Immediate="true" />
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Disabled="_loading"
+                           Class="mt-4">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Logowanie...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Zaloguj</MudText>
+                    }
+                </MudButton>
+            </EditForm>
+        </MudCardContent>
+    </MudCard>
+</MudContainer>
