@@ -29,4 +29,10 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider<TUser>
 
         return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
     }
+
+    public void NotifyAuthenticationStateChanged()
+    {
+        var authState = GetAuthenticationStateAsync();
+        SetAuthenticationState(authState);
+    }
 }

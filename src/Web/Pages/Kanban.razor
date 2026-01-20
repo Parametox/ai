@@ -26,9 +26,9 @@
                                T="BatchStatus?"
                                Clearable="true">
                         <MudSelectItem Value="@((BatchStatus?)null)">Wszystkie</MudSelectItem>
-                        <MudSelectItem Value="@BatchStatus.New">New</MudSelectItem>
-                        <MudSelectItem Value="@BatchStatus.InProgress">InProgress</MudSelectItem>
-                        <MudSelectItem Value="@BatchStatus.Done">Done</MudSelectItem>
+                        <MudSelectItem Value="@((BatchStatus?)BatchStatus.New)">New</MudSelectItem>
+                        <MudSelectItem Value="@((BatchStatus?)BatchStatus.InProgress)">InProgress</MudSelectItem>
+                        <MudSelectItem Value="@((BatchStatus?)BatchStatus.Done)">Done</MudSelectItem>
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6" md="3">
@@ -39,11 +39,11 @@
                                T="ProductionStage?"
                                Clearable="true">
                         <MudSelectItem Value="@((ProductionStage?)null)">Wszystkie</MudSelectItem>
-                        <MudSelectItem Value="@ProductionStage.Design">Design (1)</MudSelectItem>
-                        <MudSelectItem Value="@ProductionStage.Print">Print (2)</MudSelectItem>
-                        <MudSelectItem Value="@ProductionStage.Cut">Cut (3)</MudSelectItem>
-                        <MudSelectItem Value="@ProductionStage.Pack">Pack (4)</MudSelectItem>
-                        <MudSelectItem Value="@ProductionStage.Ship">Ship (5)</MudSelectItem>
+                        <MudSelectItem Value="@((ProductionStage?)ProductionStage.Design)">Design (1)</MudSelectItem>
+                        <MudSelectItem Value="@((ProductionStage?)ProductionStage.Print)">Print (2)</MudSelectItem>
+                        <MudSelectItem Value="@((ProductionStage?)ProductionStage.Cut)">Cut (3)</MudSelectItem>
+                        <MudSelectItem Value="@((ProductionStage?)ProductionStage.Pack)">Pack (4)</MudSelectItem>
+                        <MudSelectItem Value="@((ProductionStage?)ProductionStage.Ship)">Ship (5)</MudSelectItem>
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6" md="4">

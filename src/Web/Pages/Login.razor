@@ -17,12 +17,11 @@
             </div>
         }
 
-        <form @onsubmit="HandleLogin" @onsubmit:preventDefault="true" class="login-form">
+        <form method="post" action="/api/auth/login" class="login-form">
             <div class="form-group">
                 <label for="username" class="form-label">Nazwa użytkownika</label>
                 <input type="text" 
-                       @bind="_loginModel.Username"
-                       @bind:event="oninput"
+                       name="username"
                        id="username" 
                        class="form-input" 
                        autocomplete="username"
@@ -32,16 +31,15 @@
             <div class="form-group">
                 <label for="password" class="form-label">Hasło</label>
                 <input type="password" 
-                       @bind="_loginModel.Password"
-                       @bind:event="oninput"
+                       name="password"
                        id="password" 
                        class="form-input" 
                        autocomplete="current-password" 
                        required />
             </div>
             
-            <button type="submit" class="btn btn-primary btn-full" disabled="@_isLoading">
-                <span>@(_isLoading ? "Logowanie..." : "Zaloguj")</span>
+            <button type="submit" class="btn btn-primary btn-full">
+                <span>Zaloguj</span>
             </button>
         </form>
     </div>

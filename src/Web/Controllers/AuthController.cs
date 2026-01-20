@@ -46,7 +46,7 @@ public sealed class AuthController : ControllerBase
                 ? returnUrl
                 : "/kanban";
             
-            return Ok(redirectUrl);
+            return Redirect(redirectUrl);
         }
 
         _logger.LogWarning("Nieudana próba logowania dla użytkownika: {Username}", username);
