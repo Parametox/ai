@@ -286,8 +286,11 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
             candidates = candidates.Where(x => x.Id != id);
         }
 
+        // Logika nakładania się zakresów: minA <= bMax && minB <= aMax
+        // Gdy maxQty jest null, traktujemy jako int.MaxValue
+        var maxQtyValue = maxQty ?? int.MaxValue;
         var overlaps = await candidates
-            .Where(x => RangesOverlap(x.MinQty, x.MaxQty, minQty, maxQty))
+            .Where(x => x.MinQty <= maxQtyValue && minQty <= (x.MaxQty ?? int.MaxValue))
             .AnyAsync(ct);
 
         return overlaps
@@ -299,13 +302,6 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
                     ["maxQty"] = ["Aktywne zakresy nie mogą się nakładać."]
                 })
             : null;
-    }
-
-    private static bool RangesOverlap(int minA, int? maxA, int minB, int? maxB)
-    {
-        var aMax = maxA ?? int.MaxValue;
-        var bMax = maxB ?? int.MaxValue;
-        return minA <= bMax && minB <= aMax;
     }
 
     private static BatchSplitRuleDto ToDto(BatchSplitRule x)

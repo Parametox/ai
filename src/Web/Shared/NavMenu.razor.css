@@ -11,3 +11,23 @@
 ::deep .mud-nav-link:hover {
     background-color: rgba(var(--mud-palette-primary-rgb), 0.08);
 }
+
+/* Wyrównanie labeli przycisków do lewej */
+::deep .mud-nav-link .mud-nav-link-text {
+    text-align: left;
+    justify-content: flex-start;
+}
+
+::deep .mud-nav-link .mud-nav-link-icon {
+    margin-right: 0.5rem;
+}
+
+/* Wyrównanie przycisku Wyloguj do lewej */
+::deep .mud-button-root {
+    justify-content: flex-start !important;
+    text-align: left;
+}
+
+::deep .mud-button-start-icon {
+    margin-right: 0.5rem;
+}

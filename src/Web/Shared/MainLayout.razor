@@ -1,18 +1,46 @@
 @inherits LayoutComponentBase
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Authorization
 
 <PageTitle>KanbanLite.Web</PageTitle>
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <MudPopoverProvider />
-        <article class="content px-4">
+<MudLayout>
+    <AuthorizeView>
+        <Authorized>
+            <MudAppBar Elevation="1">
+                <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@ToggleDrawer" />
+                <MudText Typo="Typo.h6">Kanban</MudText>
+                <MudSpacer />
+            </MudAppBar>
+            <MudDrawer @bind-Open="_drawerOpen" 
+                       Variant="@DrawerVariant.Mini" 
+                       Elevation="1"
+                       OpenMiniOnHover="true">
+                <NavMenu />
+            </MudDrawer>
+        </Authorized>
+        <NotAuthorized>
+            <MudAppBar Elevation="1">
+                <MudText Typo="Typo.h6">Kanban</MudText>
+                <MudSpacer />
+            </MudAppBar>
+        </NotAuthorized>
+    </AuthorizeView>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.False" Class="mt-4">
+            <MudPopoverProvider />
             @Body
-        </article>
-    </main>
-</div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
 
 <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+
+@code {
+    private bool _drawerOpen = true;
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+}

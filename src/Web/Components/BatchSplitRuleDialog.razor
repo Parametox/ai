@@ -1,0 +1,275 @@
+@using KanbanLite.Contracts
+@using KanbanLite.Application.Services
+@using Microsoft.AspNetCore.Components
+@using System.ComponentModel.DataAnnotations
+@using MudBlazor
+@inject IBatchSplitRuleService BatchSplitRuleService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <EditForm Model="@formModel" OnValidSubmit="OnValidSubmit">
+            <DataAnnotationsValidator />
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h6" Class="mb-3">
+                        @(IsEdit ? "Edycja reguły podziału" : "Nowa reguła podziału")
+                    </MudText>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudNumericField Label="Minimalna ilość"
+                                     Placeholder="Minimalna ilość"
+                                     @bind-Value="formModel.MinQty"
+                                     For="@(() => formModel.MinQty)"
+                                     Min="1"
+                                     Max="1000000"
+                                     Required="true"
+                                     RequiredError="Minimalna ilość jest wymagana"
+                                     Variant="Variant.Outlined"
+                                     HideSpinButtons="false"
+                                     Class="batch-rule-input" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudNumericField Label="Maksymalna ilość (opcjonalnie)"
+                                     Placeholder="Maksymalna ilość (opcjonalnie)"
+                                     @bind-Value="formModel.MaxQty"
+                                     For="@(() => formModel.MaxQty)"
+                                     Min="1"
+                                     Max="1000000"
+                                     Variant="Variant.Outlined"
+                                     HideSpinButtons="false"
+                                     HelperText="Pozostaw puste dla nieograniczonego zakresu"
+                                     Class="batch-rule-input" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudNumericField Label="Procent podziału"
+                                     Placeholder="Procent podziału"
+                                     @bind-Value="formModel.Percent"
+                                     For="@(() => formModel.Percent)"
+                                     Min="0.01M"
+                                     Max="1.0M"
+                                     Step="0.01M"
+                                     Required="true"
+                                     RequiredError="Procent jest wymagany"
+                                     Variant="Variant.Outlined"
+                                     Format="P2"
+                                     HelperText="Wartość między 0.01 (1%) a 1.0 (100%)"
+                                     Class="batch-rule-input" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudNumericField Label="Minimalny rozmiar batcha"
+                                     Placeholder="Minimalny rozmiar batcha"
+                                     @bind-Value="formModel.MinBatchSize"
+                                     For="@(() => formModel.MinBatchSize)"
+                                     Min="1"
+                                     Max="100000"
+                                     Required="true"
+                                     RequiredError="Minimalny rozmiar batcha jest wymagany"
+                                     Variant="Variant.Outlined"
+                                     HideSpinButtons="false"
+                                     Class="batch-rule-input" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudNumericField Label="Maksymalna liczba batchy na projekt (opcjonalnie)"
+                                     Placeholder="Maksymalna liczba batchy na projekt (opcjonalnie)"
+                                     @bind-Value="formModel.MaxBatchesPerProject"
+                                     For="@(() => formModel.MaxBatchesPerProject)"
+                                     Min="1"
+                                     Max="1000"
+                                     Variant="Variant.Outlined"
+                                     HideSpinButtons="false"
+                                     HelperText="Pozostaw puste dla braku ograniczenia"
+                                     Class="batch-rule-input" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudSwitch T="bool" @bind-Checked="formModel.IsActive" 
+                               Label="Aktywna" 
+                               Color="Color.Primary" />
+                </MudItem>
+
+                @if (!string.IsNullOrEmpty(validationMessage))
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Error" ShowCloseIcon="true" CloseIconClicked="@(() => validationMessage = string.Empty)">
+                            @validationMessage
+                        </MudAlert>
+                    </MudItem>
+                }
+
+                <MudItem xs="12">
+                    <MudCard>
+                        <MudCardContent>
+                            <MudText Typo="Typo.h6" Class="mb-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+                                Podgląd reguły
+                            </MudText>
+                            <MudText Typo="Typo.body2" Class="mb-1">
+                                <strong>Zakres:</strong> @GetRangePreview()
+                            </MudText>
+                            <MudText Typo="Typo.body2" Class="mb-1">
+                                <strong>Rozmiar batcha:</strong> @(formModel.Percent * 100)% ilości (min. @formModel.MinBatchSize)
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                <strong>Limit batchy:</strong> @(formModel.MaxBatchesPerProject?.ToString() ?? "Brak ograniczenia")
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="Submit"
+                   Disabled="@isSubmitting">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <span>Zapisywanie...</span>
+            }
+            else
+            {
+                <span>@(IsEdit ? "Zaktualizuj" : "Utwórz")</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public BatchSplitRuleDto? BatchSplitRule { get; set; }
+    [Parameter] public bool IsEdit { get; set; } = false;
+    
+    private BatchSplitRuleFormModel formModel = new();
+    private bool isSubmitting = false;
+    private string validationMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (IsEdit && BatchSplitRule != null)
+        {
+            formModel.MinQty = BatchSplitRule.MinQty;
+            formModel.MaxQty = BatchSplitRule.MaxQty;
+            formModel.Percent = BatchSplitRule.Percent;
+            formModel.MinBatchSize = BatchSplitRule.MinBatchSize;
+            formModel.MaxBatchesPerProject = BatchSplitRule.MaxBatchesPerProject;
+            formModel.IsActive = BatchSplitRule.IsActive;
+        }
+        else
+        {
+            formModel.IsActive = true; // Domyślnie aktywna dla nowych reguł
+            formModel.Percent = 0.1M; // Domyślnie 10%
+            formModel.MinBatchSize = 1;
+            formModel.MinQty = 1;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (isSubmitting) return;
+
+        try
+        {
+            isSubmitting = true;
+            validationMessage = string.Empty;
+
+            // Walidacja zakresu
+            if (formModel.MaxQty.HasValue && formModel.MaxQty.Value <= formModel.MinQty)
+            {
+                validationMessage = "Maksymalna ilość musi być większa od minimalnej.";
+                return;
+            }
+
+            var request = new UpsertBatchSplitRuleRequest(
+                formModel.MinQty,
+                formModel.MaxQty,
+                formModel.Percent,
+                formModel.MinBatchSize,
+                formModel.MaxBatchesPerProject,
+                formModel.IsActive
+            );
+
+            if (IsEdit && BatchSplitRule != null)
+            {
+                var result = await BatchSplitRuleService.UpdateAsync(BatchSplitRule.Id, request);
+                
+                if (result.IsSuccess)
+                {
+                    MudDialog.Close(DialogResult.Ok(result.Value));
+                }
+                else
+                {
+                    validationMessage = result.Error.Message;
+                }
+            }
+            else
+            {
+                var result = await BatchSplitRuleService.CreateAsync(request);
+                
+                if (result.IsSuccess)
+                {
+                    MudDialog.Close(DialogResult.Ok(result.Value));
+                }
+                else
+                {
+                    validationMessage = result.Error.Message;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            validationMessage = $"Wystąpił nieoczekiwany błąd: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task OnValidSubmit()
+    {
+        await Submit();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private string GetRangePreview()
+    {
+        if (formModel.MaxQty.HasValue)
+        {
+            return $"{formModel.MinQty:N0} - {formModel.MaxQty.Value:N0} sztuk";
+        }
+        return $"{formModel.MinQty:N0}+ sztuk";
+    }
+
+    public class BatchSplitRuleFormModel
+    {
+        [Required(ErrorMessage = "Minimalna ilość jest wymagana")]
+        [Range(1, 1000000, ErrorMessage = "Minimalna ilość musi być z zakresu 1-1,000,000")]
+        public int MinQty { get; set; } = 1;
+        
+        [Range(1, 1000000, ErrorMessage = "Maksymalna ilość musi być z zakresu 1-1,000,000")]
+        public int? MaxQty { get; set; }
+        
+        [Required(ErrorMessage = "Procent jest wymagany")]
+        [Range(0.01, 1.0, ErrorMessage = "Procent musi być z zakresu 1%-100%")]
+        public decimal Percent { get; set; } = 0.1M;
+        
+        [Required(ErrorMessage = "Minimalny rozmiar batcha jest wymagany")]
+        [Range(1, 100000, ErrorMessage = "Minimalny rozmiar batcha musi być z zakresu 1-100,000")]
+        public int MinBatchSize { get; set; } = 1;
+        
+        [Range(1, 1000, ErrorMessage = "Maksymalna liczba batchy musi być z zakresu 1-1,000")]
+        public int? MaxBatchesPerProject { get; set; }
+        
+        public bool IsActive { get; set; } = true;
+    }
+}

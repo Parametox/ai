@@ -1,0 +1,410 @@
+@page "/manager/dashboard"
+@using KanbanLite.Contracts
+@using KanbanLite.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Manager")]
+@inject IDashboardService DashboardService
+@inject IOrderService OrderService
+@inject IBatchSplitRuleService BatchSplitRuleService
+@inject IProductFormatService ProductFormatService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject IDialogService DialogService
+
+<PageTitle>Panel Managera</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h3" Class="mb-6">
+        <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-3" />
+        Panel Managera
+    </MudText>
+
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+        <!-- Dashboard Tab -->
+        <MudTabPanel Text="Dashboard" Icon="@Icons.Material.Filled.Analytics">
+            <MudGrid>
+                <!-- Metryki operacyjne -->
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h5" Class="mb-4">Metryki operacyjne</MudText>
+                </MudItem>
+
+                @if (dashboardData != null)
+                {
+                    <!-- Statusy batchy -->
+                    <MudItem xs="12" md="4">
+                        <MudCard Elevation="3">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Statusy batchy</MudText>
+                                </CardHeaderContent>
+                                <CardHeaderActions>
+                                    <MudIcon Icon="@Icons.Material.Filled.Assignment" Color="Color.Primary" />
+                                </CardHeaderActions>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudList T="string">
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.FiberNew" IconColor="Color.Info">
+                                        <MudText>Nowe: @dashboardData.CountsByStatus[BatchStatus.New]</MudText>
+                                    </MudListItem>
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.PlayArrow" IconColor="@(dashboardData.CountsByStatus.GetValueOrDefault(BatchStatus.InProgress, 0) > 20 ? Color.Warning : Color.Success)">
+                                        <MudText>W trakcie: @dashboardData.CountsByStatus.GetValueOrDefault(BatchStatus.InProgress, 0)</MudText>
+                                        @if (dashboardData.CountsByStatus.GetValueOrDefault(BatchStatus.InProgress, 0) > 20)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Small" Class="ml-2" />
+                                        }
+                                    </MudListItem>
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                        <MudText>Zakończone: @dashboardData.CountsByStatus.GetValueOrDefault(BatchStatus.Done, 0)</MudText>
+                                    </MudListItem>
+                                </MudList>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <!-- Etapy produkcji -->
+                    <MudItem xs="12" md="4">
+                        <MudCard Elevation="3">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Etapy produkcji</MudText>
+                                </CardHeaderContent>
+                                <CardHeaderActions>
+                                    <MudIcon Icon="@Icons.Material.Filled.LinearScale" Color="Color.Primary" />
+                                </CardHeaderActions>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudList T="string" Dense="true">
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.DesignServices" IconColor="Color.Info">
+                                        <MudText Typo="Typo.caption">Projektowanie: @dashboardData.CountsByStage.GetValueOrDefault(ProductionStage.Design, 0)</MudText>
+                                    </MudListItem>
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Print" IconColor="Color.Secondary">
+                                        <MudText Typo="Typo.caption">Druk: @dashboardData.CountsByStage.GetValueOrDefault(ProductionStage.Print, 0)</MudText>
+                                    </MudListItem>
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.ContentCut" IconColor="Color.Warning">
+                                        <MudText Typo="Typo.caption">Cięcie: @dashboardData.CountsByStage.GetValueOrDefault(ProductionStage.Cut, 0)</MudText>
+                                    </MudListItem>
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Inventory" IconColor="Color.Error">
+                                        <MudText Typo="Typo.caption">Pakowanie: @dashboardData.CountsByStage.GetValueOrDefault(ProductionStage.Pack, 0)</MudText>
+                                    </MudListItem>
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.LocalShipping" IconColor="Color.Success">
+                                        <MudText Typo="Typo.caption">Wysyłka: @dashboardData.CountsByStage.GetValueOrDefault(ProductionStage.Ship, 0)</MudText>
+                                    </MudListItem>
+                                </MudList>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <!-- Ostrzeżenia -->
+                    <MudItem xs="12" md="4">
+                        <MudCard Elevation="3">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Ostrzeżenia</MudText>
+                                </CardHeaderContent>
+                                <CardHeaderActions>
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="@(dashboardData.Warnings.Any() ? Color.Warning : Color.Success)" />
+                                </CardHeaderActions>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                @if (dashboardData.Warnings.Any())
+                                {
+                                    @foreach (var warning in dashboardData.Warnings)
+                                    {
+                                        <MudAlert Severity="Severity.Warning" Class="mb-2" Dense="true">
+                                            @warning.Message
+                                        </MudAlert>
+                                    }
+                                }
+                                else
+                                {
+                                    <MudText Color="Color.Success">
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Class="mr-2" />
+                                        Brak ostrzeżeń
+                                    </MudText>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+
+                    <!-- Pilne projekty -->
+                    <MudItem xs="12">
+                        <MudCard Elevation="3">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">Pilne projekty (termin PONIŻEJ 7 dni)</MudText>
+                                </CardHeaderContent>
+                                <CardHeaderActions>
+                                    <MudIcon Icon="@Icons.Material.Filled.Schedule" Color="Color.Error" />
+                                </CardHeaderActions>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                @if (dashboardData.UrgentOrders.Any())
+                                {
+                                    <MudTable Items="@dashboardData.UrgentOrders" Hover="true" Dense="true" T="DashboardUrgentOrderDto">
+                                        <HeaderContent>
+                                            <MudTh>Projekt</MudTh>
+                                            <MudTh>Zlecenie</MudTh>
+                                            <MudTh>Termin</MudTh>
+                                            <MudTh>Dni do terminu</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd DataLabel="Projekt">@context.ProjectNumber</MudTd>
+                                            <MudTd DataLabel="Zlecenie">@context.OrderNumber</MudTd>
+                                            <MudTd DataLabel="Termin">@context.DueDate.ToString("dd.MM.yyyy")</MudTd>
+                                            <MudTd DataLabel="Dni do terminu">
+                                                @{
+                                                    var daysUntilDue = (context.DueDate.ToDateTime(TimeOnly.MinValue) - DateTime.Now).Days;
+                                                }
+                                                <MudChip T="string" Color="@(daysUntilDue < 0 ? Color.Error : daysUntilDue < 3 ? Color.Warning : Color.Info)" Size="Size.Small">
+                                                    @daysUntilDue
+                                                </MudChip>
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                }
+                                else
+                                {
+                                    <MudText Color="Color.Success">
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Class="mr-2" />
+                                        Brak pilnych projektów
+                                    </MudText>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- Historia zleceń Tab -->
+        <MudTabPanel Text="Historia zleceń" Icon="@Icons.Material.Filled.History">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h5" Class="mb-4">Historia zleceń</MudText>
+                </MudItem>
+                
+                <!-- Filtry -->
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="orderSearchQuery" 
+                                  Label="Szukaj (numer zlecenia)"
+                                  Placeholder="Szukaj (numer zlecenia)" 
+                                  Variant="Variant.Outlined"
+                                  Immediate="true"
+                                  DebounceInterval="500"
+                                  OnDebounceIntervalElapsed="LoadOrders"
+                                  Class="dashboard-filter-input" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudDatePicker @bind-Date="orderDueFrom" 
+                                   Label="Termin od"
+                                   Placeholder="Termin od" 
+                                   Variant="Variant.Outlined"
+                                   Class="dashboard-filter-input" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudDatePicker @bind-Date="orderDueTo" 
+                                   Label="Termin do"
+                                   Placeholder="Termin do" 
+                                   Variant="Variant.Outlined"
+                                   Class="dashboard-filter-input" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudButton OnClick="ClearOrderFilters" 
+                               Variant="Variant.Outlined" 
+                               StartIcon="@Icons.Material.Filled.Clear"
+                               FullWidth="true">
+                        Wyczyść
+                    </MudButton>
+                </MudItem>
+
+                <!-- Tabela zleceń -->
+                <MudItem xs="12">
+                    <MudTable @ref="ordersTable" 
+                              ServerData="@(new Func<TableState, CancellationToken, Task<TableData<OrderListItemDto>>>(LoadOrdersData))"
+                              Hover="true" 
+                              Loading="@loadingOrders"
+                              LoadingProgressColor="Color.Info"
+                              T="OrderListItemDto">
+                        <HeaderContent>
+                            <MudTh><MudTableSortLabel SortLabel="OrderNumber" T="OrderListItemDto">Numer zlecenia</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="Quantity" T="OrderListItemDto">Ilość</MudTableSortLabel></MudTh>
+                            <MudTh>Format produktu</MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="DueDate" T="OrderListItemDto">Termin realizacji</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="CreatedAt" T="OrderListItemDto">Data utworzenia</MudTableSortLabel></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Numer zlecenia">@context.OrderNumber</MudTd>
+                            <MudTd DataLabel="Ilość">@context.Quantity.ToString("N0")</MudTd>
+                            <MudTd DataLabel="Format produktu">@context.ProductFormatName</MudTd>
+                            <MudTd DataLabel="Termin realizacji">@context.DueDate.ToString("dd.MM.yyyy")</MudTd>
+                            <MudTd DataLabel="Data utworzenia">@context.CreatedAt.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[]{10, 25, 50, 100}" />
+                        </PagerContent>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- Formaty produktów Tab -->
+        <MudTabPanel Text="Formaty produktów" Icon="@Icons.Material.Filled.Category">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h5" Class="mb-4">Zarządzanie formatami produktów</MudText>
+                </MudItem>
+
+                <!-- Przycisk dodaj nowy format -->
+                <MudItem xs="12" md="6">
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => OpenCreateProductFormatDialog())">
+                        Dodaj nowy format
+                    </MudButton>
+                </MudItem>
+
+                <!-- Filtry -->
+                <MudItem xs="12" md="6">
+                    <MudSwitch T="bool" 
+                               @bind-Value="showInactiveFormats" 
+                               Label="Pokaż nieaktywne formaty" 
+                               Color="Color.Primary" />
+                </MudItem>
+
+                <!-- Tabela formatów -->
+                <MudItem xs="12">
+                    <MudTable @ref="formatsTable"
+                              ServerData="@(new Func<TableState, CancellationToken, Task<TableData<ProductFormatDto>>>(LoadFormatsData))"
+                              Hover="true" 
+                              Loading="@loadingFormats"
+                              T="ProductFormatDto">
+                        <HeaderContent>
+                            <MudTh>Nazwa</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Data utworzenia</MudTh>
+                            <MudTh>Akcje</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Nazwa">@context.Name</MudTd>
+                            <MudTd DataLabel="Status">
+                                @if (context.IsActive)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Aktywny</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Default" Size="Size.Small">Nieaktywny</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Data utworzenia">@context.CreatedAt.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                            <MudTd DataLabel="Akcje">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                               Color="Color.Primary" 
+                                               Size="Size.Small"
+                                               OnClick="@(() => OpenEditProductFormatDialog(context))" />
+                                @if (context.IsActive)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Block" 
+                                                   Color="Color.Warning" 
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => DeactivateProductFormat(context.Id))" />
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[]{10, 25, 50}" />
+                        </PagerContent>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- Reguły podziału Tab -->
+        <MudTabPanel Text="Reguły podziału" Icon="@Icons.Material.Filled.Rule">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h5" Class="mb-4">Zarządzanie regułami podziału batchy</MudText>
+                </MudItem>
+
+                <!-- Przycisk dodaj nową regułę -->
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="@(() => OpenCreateBatchRuleDialog())">
+                        Dodaj nową regułę
+                    </MudButton>
+                </MudItem>
+
+                <!-- Tabela reguł -->
+                <MudItem xs="12">
+                    <MudTable @ref="rulesTable"
+                              ServerData="@(new Func<TableState, CancellationToken, Task<TableData<BatchSplitRuleDto>>>(LoadRulesData))"
+                              Hover="true" 
+                              Loading="@loadingRules"
+                              T="BatchSplitRuleDto">
+                        <HeaderContent>
+                            <MudTh>Zakres ilości</MudTh>
+                            <MudTh>Procent</MudTh>
+                            <MudTh>Min. rozmiar batcha</MudTh>
+                            <MudTh>Max. batchy/projekt</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Data utworzenia</MudTh>
+                            <MudTh>Akcje</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Zakres ilości">
+                                @{
+                                    var rangeText = context.MaxQty.HasValue 
+                                        ? $"{context.MinQty:N0} - {context.MaxQty.Value:N0}"
+                                        : $"{context.MinQty:N0}+";
+                                }
+                                @rangeText
+                            </MudTd>
+                            <MudTd DataLabel="Procent">@context.Percent.ToString("P1")</MudTd>
+                            <MudTd DataLabel="Min. rozmiar batcha">@context.MinBatchSize.ToString("N0")</MudTd>
+                            <MudTd DataLabel="Max. batchy/projekt">
+                                @(context.MaxBatchesPerProject?.ToString("N0") ?? "Brak limitu")
+                            </MudTd>
+                            <MudTd DataLabel="Status">
+                                @if (context.IsActive)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Aktywna</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Default" Size="Size.Small">Nieaktywna</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Data utworzenia">@context.CreatedAt.ToString("dd.MM.yyyy HH:mm")</MudTd>
+                            <MudTd DataLabel="Akcje">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" 
+                                               Color="Color.Primary" 
+                                               Size="Size.Small"
+                                               OnClick="@(() => OpenEditBatchRuleDialog(context))" />
+                                @if (context.IsActive)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Block" 
+                                                   Color="Color.Warning" 
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => DeactivateBatchRule(context.Id))" />
+                                }
+                                else
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" 
+                                                   Color="Color.Success" 
+                                                   Size="Size.Small"
+                                                   OnClick="@(() => ActivateBatchRule(context.Id))" />
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[]{10, 25, 50}" />
+                        </PagerContent>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>

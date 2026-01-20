@@ -1,0 +1,147 @@
+@using KanbanLite.Contracts
+@using KanbanLite.Application.Services
+@using Microsoft.AspNetCore.Components
+@using System.ComponentModel.DataAnnotations
+@using MudBlazor
+@inject IProductFormatService ProductFormatService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <EditForm Model="@formModel" OnValidSubmit="OnValidSubmit">
+            <DataAnnotationsValidator />
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField Label="Nazwa formatu"
+                                  Placeholder="Nazwa formatu"
+                                  @bind-Value="formModel.Name"
+                                  For="@(() => formModel.Name)"
+                                  Immediate="true"
+                                  Required="true"
+                                  RequiredError="Nazwa formatu jest wymagana"
+                                  Variant="Variant.Outlined"
+                                  Class="product-format-input" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Checked="formModel.IsActive" 
+                               Label="Aktywny" 
+                               Color="Color.Primary" />
+                </MudItem>
+
+                @if (!string.IsNullOrEmpty(validationMessage))
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Error" ShowCloseIcon="true" CloseIconClicked="@(() => validationMessage = string.Empty)">
+                            @validationMessage
+                        </MudAlert>
+                    </MudItem>
+                }
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="Submit"
+                   Disabled="@isSubmitting">
+            @if (isSubmitting)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <span>Zapisywanie...</span>
+            }
+            else
+            {
+                <span>@(IsEdit ? "Zaktualizuj" : "Utwórz")</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public ProductFormatDto? ProductFormat { get; set; }
+    [Parameter] public bool IsEdit { get; set; } = false;
+    
+    private ProductFormatFormModel formModel = new();
+    private bool isSubmitting = false;
+    private string validationMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (IsEdit && ProductFormat != null)
+        {
+            formModel.Name = ProductFormat.Name;
+            formModel.IsActive = ProductFormat.IsActive;
+        }
+        else
+        {
+            formModel.IsActive = true; // Domyślnie aktywny dla nowych formatów
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (isSubmitting) return;
+
+        try
+        {
+            isSubmitting = true;
+            validationMessage = string.Empty;
+
+            if (IsEdit && ProductFormat != null)
+            {
+                var updateRequest = new UpdateProductFormatRequest(formModel.Name, formModel.IsActive);
+                var result = await ProductFormatService.UpdateAsync(ProductFormat.Id, updateRequest);
+                
+                if (result.IsSuccess)
+                {
+                    MudDialog.Close(DialogResult.Ok(result.Value));
+                }
+                else
+                {
+                    validationMessage = result.Error.Message;
+                }
+            }
+            else
+            {
+                var createRequest = new CreateProductFormatRequest(formModel.Name, formModel.IsActive);
+                var result = await ProductFormatService.CreateAsync(createRequest);
+                
+                if (result.IsSuccess)
+                {
+                    MudDialog.Close(DialogResult.Ok(result.Value));
+                }
+                else
+                {
+                    validationMessage = result.Error.Message;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            validationMessage = $"Wystąpił nieoczekiwany błąd: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task OnValidSubmit()
+    {
+        await Submit();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public class ProductFormatFormModel
+    {
+        [Required(ErrorMessage = "Nazwa formatu jest wymagana")]
+        [StringLength(200, ErrorMessage = "Nazwa formatu nie może być dłuższa niż 200 znaków")]
+        public string Name { get; set; } = string.Empty;
+        
+        public bool IsActive { get; set; } = true;
+    }
+}

@@ -1,0 +1,137 @@
+@page "/manager/orders/create"
+@using KanbanLite.Contracts
+@using KanbanLite.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Manager")]
+@inject IOrderService OrderService
+@inject IProductFormatService ProductFormatService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Dodaj zlecenie</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
+    <MudPaper Class="pa-6" Elevation="3">
+        <MudText Typo="Typo.h4" Class="mb-4">
+            <MudIcon Icon="@Icons.Material.Filled.AddTask" Class="mr-3" />
+            Dodaj nowe zlecenie
+        </MudText>
+
+        <EditForm Model="@formModel" OnValidSubmit="OnValidSubmit">
+            <DataAnnotationsValidator />
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Numer zlecenia"
+                                  Placeholder="Numer zlecenia"
+                                  @bind-Value="formModel.OrderNumber"
+                                  For="@(() => formModel.OrderNumber)"
+                                  Immediate="true"
+                                  Required="true"
+                                  RequiredError="Numer zlecenia jest wymagany"
+                                  Variant="Variant.Outlined"
+                                  Class="create-order-input" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudNumericField Label="Ilość"
+                                     Placeholder="Ilość"
+                                     @bind-Value="formModel.Quantity"
+                                     For="@(() => formModel.Quantity)"
+                                     Min="1"
+                                     Max="100000"
+                                     Required="true"
+                                     RequiredError="Ilość jest wymagana"
+                                     Variant="Variant.Outlined"
+                                     HideSpinButtons="false"
+                                     Class="create-order-input" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudSelect T="long"
+                               Label="Format produktu"
+                               Placeholder="Format produktu"
+                               @bind-Value="formModel.ProductFormatId"
+                               For="@(() => formModel.ProductFormatId)"
+                               Required="true"
+                               RequiredError="Format produktu jest wymagany"
+                               Variant="Variant.Outlined"
+                               Class="create-order-input">
+                        @foreach (var format in productFormats)
+                        {
+                            <MudSelectItem Value="@format.Id">@format.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudDatePicker Label="Termin realizacji"
+                                   Placeholder="Termin realizacji"
+                                   @bind-Date="selectedDueDate"
+                                   For="@(() => selectedDueDate)"
+                                   MinDate="@minDueDate"
+                                   Required="true"
+                                   RequiredError="Termin realizacji jest wymagany"
+                                   Variant="Variant.Outlined"
+                                   DateFormat="dd.MM.yyyy"
+                                   Class="create-order-input" />
+                </MudItem>
+
+                <MudItem xs="12" Class="pt-6">
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               Size="Size.Large"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               Disabled="@isSubmitting"
+                               Class="mr-3">
+                        @if (isSubmitting)
+                        {
+                            <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                            <span>Tworzenie...</span>
+                        }
+                        else
+                        {
+                            <span>Utwórz zlecenie</span>
+                        }
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               Size="Size.Large"
+                               StartIcon="@Icons.Material.Filled.Cancel"
+                               OnClick="@(() => Navigation.NavigateTo("/kanban"))"
+                               Disabled="@isSubmitting">
+                        Anuluj
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </EditForm>
+
+        @if (!string.IsNullOrEmpty(validationMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4" ShowCloseIcon="true" CloseIconClicked="@(() => validationMessage = string.Empty)">
+                @validationMessage
+            </MudAlert>
+        }
+
+        <MudDivider Class="my-4" />
+
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6" Class="mb-2">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+                    Informacje o zleceniu
+                </MudText>
+                <MudText Typo="Typo.body2" Class="mb-2">
+                    • Ilość musi być z zakresu 1-100,000 sztuk
+                </MudText>
+                <MudText Typo="Typo.body2" Class="mb-2">
+                    • Termin realizacji musi być co najmniej 7 dni od dzisiaj
+                </MudText>
+                <MudText Typo="Typo.body2">
+                    • Po utworzeniu zlecenia automatycznie powstanie projekt i batche według aktywnej reguły podziału
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudPaper>
+</MudContainer>

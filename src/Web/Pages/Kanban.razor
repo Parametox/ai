@@ -22,9 +22,11 @@
                     <MudSelect Value="_query.Status"
                                ValueChanged="OnStatusFilterChanged"
                                Label="Status"
+                               Placeholder="Status"
                                Variant="Variant.Outlined"
                                T="BatchStatus?"
-                               Clearable="true">
+                               Clearable="true"
+                               Class="kanban-filter-input">
                         <MudSelectItem Value="@((BatchStatus?)null)">Wszystkie</MudSelectItem>
                         <MudSelectItem Value="@((BatchStatus?)BatchStatus.New)">New</MudSelectItem>
                         <MudSelectItem Value="@((BatchStatus?)BatchStatus.InProgress)">InProgress</MudSelectItem>
@@ -35,9 +37,11 @@
                     <MudSelect Value="_query.Stage"
                                ValueChanged="OnStageFilterChanged"
                                Label="Etap"
+                               Placeholder="Etap"
                                Variant="Variant.Outlined"
                                T="ProductionStage?"
-                               Clearable="true">
+                               Clearable="true"
+                               Class="kanban-filter-input">
                         <MudSelectItem Value="@((ProductionStage?)null)">Wszystkie</MudSelectItem>
                         <MudSelectItem Value="@((ProductionStage?)ProductionStage.Design)">Design (1)</MudSelectItem>
                         <MudSelectItem Value="@((ProductionStage?)ProductionStage.Print)">Print (2)</MudSelectItem>
@@ -50,8 +54,10 @@
                     <MudTextField Value="_query.Q"
                                    ValueChanged="@(EventCallback.Factory.Create<string?>(this, OnSearchTextChanged))"
                                    Label="Wyszukaj (numer zlecenia/projektu)"
+                                   Placeholder="Wyszukaj (numer zlecenia/projektu)"
                                    Variant="Variant.Outlined"
-                                   Immediate="false" />
+                                   Immediate="false"
+                                   Class="kanban-filter-input" />
                 </MudItem>
                 <MudItem xs="12" sm="6" md="2">
                     <MudButton Variant="Variant.Outlined"

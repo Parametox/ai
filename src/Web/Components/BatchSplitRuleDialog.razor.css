@@ -1,0 +1,13 @@
+/* BatchSplitRuleDialog form inputs - etykiety 2px nad inputem */
+::deep .batch-rule-input .mud-input-label {
+    margin-bottom: 2px !important;
+    line-height: 1.2;
+}
+
+::deep .batch-rule-input .mud-input-control {
+    margin-top: 0;
+}
+
+::deep .batch-rule-input .mud-input {
+    margin-top: 0;
+}
