@@ -4,6 +4,7 @@ using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
 using Microsoft.EntityFrameworkCore;
+using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
@@ -11,7 +12,7 @@ public sealed class DashboardService(AppDbContext db, ICurrentUser currentUser) 
 {
     public async Task<Result<DashboardDto>> GetAsync(CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do podglądu dashboardu.");
         if (authError is not null)
         {
             return Result<DashboardDto>.Fail(authError);
@@ -82,18 +83,6 @@ public sealed class DashboardService(AppDbContext db, ICurrentUser currentUser) 
         {
             return Result<DashboardDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas pobierania dashboardu."));
         }
-    }
-
-    private AppError? EnsureManagerAuthorized()
-    {
-        if (string.IsNullOrWhiteSpace(currentUser.UserId))
-        {
-            return AppError.Unauthorized("Użytkownik nie jest zalogowany.");
-        }
-
-        return currentUser.IsInRole("Manager")
-            ? null
-            : AppError.Forbidden("Brak uprawnień do podglądu dashboardu.");
     }
 
     private static IReadOnlyList<WarningDto> CreateSoftLimitWarnings(int inProgressCount)

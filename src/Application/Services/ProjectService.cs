@@ -5,6 +5,7 @@ using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
@@ -21,7 +22,7 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
                 }));
         }
 
-        var authError = EnsureProjectReadAuthorized();
+        var authError = EnsureManagerOrOperatorAuthorized(currentUser, "Brak uprawnień do podglądu projektu.");
         if (authError is not null)
         {
             return Result<PagedResult<ProjectListItemDto>>.Fail(authError);
@@ -84,7 +85,7 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
 
     public async Task<Result<ProjectDetailsDto>> GetByIdAsync(long id, CancellationToken ct = default)
     {
-        var authError = EnsureProjectReadAuthorized();
+        var authError = EnsureManagerOrOperatorAuthorized(currentUser, "Brak uprawnień do podglądu projektu.");
         if (authError is not null)
         {
             return Result<ProjectDetailsDto>.Fail(authError);
@@ -165,7 +166,7 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
 
     public async Task<Result<ShipProjectResult>> ShipToCustomerAsync(long projectId, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do wysyłki projektu do klienta.");
         if (authError is not null)
         {
             return Result<ShipProjectResult>.Fail(authError);
@@ -259,30 +260,6 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
             return Result<ShipProjectResult>.Fail(
                 AppError.Unexpected("Nieoczekiwany błąd podczas wysyłki projektu do klienta."));
         }
-    }
-
-    private AppError? EnsureManagerAuthorized()
-    {
-        if (string.IsNullOrWhiteSpace(currentUser.UserId))
-        {
-            return AppError.Unauthorized("Użytkownik nie jest zalogowany.");
-        }
-
-        return currentUser.IsInRole("Manager")
-            ? null
-            : AppError.Forbidden("Brak uprawnień do wysyłki projektu do klienta.");
-    }
-
-    private AppError? EnsureProjectReadAuthorized()
-    {
-        if (string.IsNullOrWhiteSpace(currentUser.UserId))
-        {
-            return AppError.Unauthorized("Użytkownik nie jest zalogowany.");
-        }
-
-        return currentUser.IsInRole("Manager") || currentUser.IsInRole("Operator")
-            ? null
-            : AppError.Forbidden("Brak uprawnień do podglądu projektu.");
     }
 
     private bool SupportsTransactions()

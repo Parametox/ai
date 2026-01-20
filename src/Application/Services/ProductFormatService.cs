@@ -4,6 +4,7 @@ using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
 using Microsoft.EntityFrameworkCore;
+using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
@@ -20,7 +21,7 @@ public sealed class ProductFormatService(AppDbContext db, ICurrentUser currentUs
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania formatami produktów.");
         if (authError is not null)
         {
             return Result<PagedResult<ProductFormatDto>>.Fail(authError);
@@ -80,7 +81,7 @@ public sealed class ProductFormatService(AppDbContext db, ICurrentUser currentUs
 
     public async Task<Result<IReadOnlyList<ProductFormatLookupDto>>> GetActiveLookupAsync(CancellationToken ct = default)
     {
-        var authError = EnsureAuthenticated();
+        var authError = EnsureAuthenticated(currentUser);
         if (authError is not null)
         {
             return Result<IReadOnlyList<ProductFormatLookupDto>>.Fail(authError);
@@ -118,7 +119,7 @@ public sealed class ProductFormatService(AppDbContext db, ICurrentUser currentUs
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania formatami produktów.");
         if (authError is not null)
         {
             return Result<ProductFormatDto>.Fail(authError);
@@ -176,7 +177,7 @@ public sealed class ProductFormatService(AppDbContext db, ICurrentUser currentUs
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania formatami produktów.");
         if (authError is not null)
         {
             return Result<ProductFormatDto>.Fail(authError);
@@ -225,7 +226,7 @@ public sealed class ProductFormatService(AppDbContext db, ICurrentUser currentUs
 
     public async Task<Result<bool>> DeactivateAsync(long id, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania formatami produktów.");
         if (authError is not null)
         {
             return Result<bool>.Fail(authError);
@@ -257,23 +258,5 @@ public sealed class ProductFormatService(AppDbContext db, ICurrentUser currentUs
             return Result<bool>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas dezaktywacji formatu produktu."));
         }
     }
-
-    private AppError? EnsureManagerAuthorized()
-    {
-        var authError = EnsureAuthenticated();
-        if (authError is not null)
-        {
-            return authError;
-        }
-
-        return currentUser.IsInRole("Manager")
-            ? null
-            : AppError.Forbidden("Brak uprawnień do zarządzania formatami produktów.");
-    }
-
-    private AppError? EnsureAuthenticated()
-        => string.IsNullOrWhiteSpace(currentUser.UserId)
-            ? AppError.Unauthorized("Użytkownik nie jest zalogowany.")
-            : null;
 }
 

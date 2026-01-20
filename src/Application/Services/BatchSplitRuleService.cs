@@ -4,6 +4,7 @@ using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
 using Microsoft.EntityFrameworkCore;
+using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
@@ -20,7 +21,7 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania regułami dzielenia batchy.");
         if (authError is not null)
         {
             return Result<IReadOnlyList<BatchSplitRuleDto>>.Fail(authError);
@@ -75,7 +76,7 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania regułami dzielenia batchy.");
         if (authError is not null)
         {
             return Result<BatchSplitRuleDto>.Fail(authError);
@@ -142,7 +143,7 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania regułami dzielenia batchy.");
         if (authError is not null)
         {
             return Result<BatchSplitRuleDto>.Fail(authError);
@@ -200,7 +201,7 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
 
     public async Task<Result<BatchSplitRuleDto>> SetActiveAsync(long id, bool isActive, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania regułami dzielenia batchy.");
         if (authError is not null)
         {
             return Result<BatchSplitRuleDto>.Fail(authError);
@@ -242,18 +243,6 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
             return Result<BatchSplitRuleDto>.Fail(
                 AppError.Unexpected("Nieoczekiwany błąd podczas zmiany aktywności reguły dzielenia batchy."));
         }
-    }
-
-    private AppError? EnsureManagerAuthorized()
-    {
-        if (string.IsNullOrWhiteSpace(currentUser.UserId))
-        {
-            return AppError.Unauthorized("Użytkownik nie jest zalogowany.");
-        }
-
-        return currentUser.IsInRole("Manager")
-            ? null
-            : AppError.Forbidden("Brak uprawnień do zarządzania regułami dzielenia batchy.");
     }
 
     private static AppError? Validate(UpsertBatchSplitRuleRequest request)

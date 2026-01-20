@@ -7,6 +7,7 @@ using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
@@ -23,7 +24,7 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null)
         {
             return Result<CreateOrderResult>.Fail(authError);
@@ -170,7 +171,7 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
                 }));
         }
 
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null)
         {
             return Result<PagedResult<OrderListItemDto>>.Fail(authError);
@@ -249,7 +250,7 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
 
     public async Task<Result<OrderDetailsDto>> GetByIdAsync(long id, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized();
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null)
         {
             return Result<OrderDetailsDto>.Fail(authError);
@@ -305,18 +306,6 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
         {
             return Result<OrderDetailsDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas pobierania szczegółów zlecenia."));
         }
-    }
-
-    private AppError? EnsureManagerAuthorized()
-    {
-        if (string.IsNullOrWhiteSpace(currentUser.UserId))
-        {
-            return AppError.Unauthorized("Użytkownik nie jest zalogowany.");
-        }
-
-        return currentUser.IsInRole("Manager")
-            ? null
-            : AppError.Forbidden("Brak uprawnień do tworzenia zleceń.");
     }
 
     private bool SupportsTransactions()

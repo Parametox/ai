@@ -185,11 +185,6 @@ public sealed record ProjectQuery(
     int PageSize = 50
 );
 
-/// <summary>
-/// Opcjonalny request z planu API. W MVP pole <see cref="Note"/> może być ignorowane (brak persystencji w DB).
-/// </summary>
-public sealed record ShipProjectRequest(string? Note = null);
-
 public sealed record ShipProjectResult(
     long Id,
     bool IsCompleted,
@@ -310,16 +305,6 @@ public sealed record BatchAuditEventDto(
     BatchStatus? NewStatus,
     ProductionStage? OldStage,
     ProductionStage? NewStage
-);
-
-public sealed record AddBatchAuditEventRequest(
-    long BatchId,
-    string ChangedByUserId,
-    BatchStatus? OldStatus,
-    BatchStatus? NewStatus,
-    ProductionStage? OldStage,
-    ProductionStage? NewStage,
-    DateTimeOffset ChangedAt
 );
 
 // ----------------------------
