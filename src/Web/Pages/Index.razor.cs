@@ -12,7 +12,9 @@ public partial class Index
         {
             if (authState.User.Identity?.IsAuthenticated == true)
             {
-                Navigation.NavigateTo("/kanban", forceLoad: false);
+                // Po HTTP redirect z kontrolera używamy forceLoad: true, aby wymusić pełne przeładowanie
+                // i odświeżenie stanu autoryzacji w Blazor Server
+                Navigation.NavigateTo("/kanban", forceLoad: true);
             }
             else
             {

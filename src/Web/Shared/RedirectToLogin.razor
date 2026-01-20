@@ -12,14 +12,8 @@
                 return;
             }
             
-            // Jeśli brak returnUrl, użyj aktualnej ścieżki (bez query string)
-            var returnUrl = currentPath;
-            if (string.IsNullOrEmpty(returnUrl) || returnUrl == "/")
-            {
-                returnUrl = "/kanban"; // Domyślnie przekieruj na kanban po zalogowaniu
-            }
-            
-            Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}", replace: true);
+            // Przekieruj na /login z ReturnUrl
+            Navigation.NavigateTo($"/login", replace: true);
         }
     }
 }

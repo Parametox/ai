@@ -280,16 +280,44 @@ System uwierzytelniania w KanbanLite MVP opiera się na **ASP.NET Core Identity*
 - **Role Seeder:** Automatyczne tworzenie ról przy pierwszym uruchomieniu
 - **Migration Strategy:** Seedowanie w metodzie `OnModelCreating` lub dedykowanym middleware
 
+### Architektura Cookie Bridge
+
+System uwierzytelniania wykorzystuje wzorzec **Cookie Bridge** - kontroler HTTP, który obsługuje tradycyjne żądania POST do logowania i wylogowania. Jest to konieczne, ponieważ Blazor Server działa w trybie `InteractiveServer` z SignalR, który nie pozwala na bezpośrednie ustawianie ciasteczek autentykacji z poziomu połączenia WebSocket.
+
+#### Dlaczego Cookie Bridge?
+
+- **Ograniczenia SignalR/WebSocket:** Połączenia SignalR nie obsługują pełnego zestawu nagłówków HTTP wymaganych do ustawienia ciasteczek autentykacji (Set-Cookie).
+- **Wymagania ASP.NET Core Identity:** `SignInManager.PasswordSignInAsync` wymaga tradycyjnego kontekstu HTTP z pełnym dostępem do nagłówków odpowiedzi.
+- **Rozwiązanie:** Kontroler `AuthController` działa jako "most" między formularzem HTML a mechanizmem uwierzytelniania Identity, umożliwiając poprawne ustawienie ciasteczek.
+
+#### Komponenty Cookie Bridge
+
+1. **AuthController** (`/api/auth/login`, `/api/auth/logout`):
+   - Obsługuje żądania POST z formularzy HTML
+   - Używa `SignInManager.PasswordSignInAsync` do uwierzytelniania
+   - Ustawia ciasteczka autentykacji przez standardowy kontekst HTTP
+   - Wykonuje przekierowania po sukcesie/porażce
+
+2. **Formularz logowania** (`Login.razor`):
+   - Standardowy HTML `<form>` z `action="api/auth/login"` i `method="post"`
+   - Komponenty MudBlazor z atrybutem `Name` dla model bindingu
+   - Obsługa parametru query string `error` do wyświetlania komunikatów błędów
+
+3. **Formularz wylogowania** (`NavMenu.razor`):
+   - Formularz POST do `api/auth/logout`
+   - Przycisk MudBlazor z `ButtonType.Submit`
+
 ### Przepływ uwierzytelniania
 
 1. **Użytkownik odwiedza aplikację** → Ładuje się strona główna `/` (Index.razor)
 2. **Index sprawdza autoryzację** → Jeśli niezalogowany → przekierowanie do `/login`, jeśli zalogowany → przekierowanie do `/kanban`
-3. **Wprowadza dane logowania** → Walidacja przez `SignInManager`
-4. **Weryfikacja hasła** → Porównanie z zahashowanym hasłem w bazie
-5. **Tworzenie sesji** → Ustawienie cookie autentykacji (ASP.NET Core Identity Cookie)
-6. **Przekierowanie** → Do `/kanban` (domyślna strona po logowaniu)
-7. **Autoryzacja w komponentach** → Sprawdzenie roli użytkownika
-8. **Renderowanie UI** → Warunkowe wyświetlanie elementów na podstawie roli
+3. **Wprowadza dane logowania** → Formularz HTML wysyła POST do `/api/auth/login`
+4. **AuthController** → Wywołuje `SignInManager.PasswordSignInAsync` z danymi z formularza
+5. **Weryfikacja hasła** → Porównanie z zahashowanym hasłem w bazie przez Identity
+6. **Tworzenie sesji** → Ustawienie cookie autentykacji (ASP.NET Core Identity Cookie) przez standardowy kontekst HTTP
+7. **Przekierowanie** → Do `/kanban` (sukces) lub `/login?error=true` (porażka)
+8. **Autoryzacja w komponentach** → Sprawdzenie roli użytkownika przez `AuthenticationStateProvider`
+9. **Renderowanie UI** → Warunkowe wyświetlanie elementów na podstawie roli
 
 ### Bezpieczeństwo
 
@@ -298,6 +326,8 @@ System uwierzytelniania w KanbanLite MVP opiera się na **ASP.NET Core Identity*
 - **Secure Cookies:** Cookies autentykacji z flagami `HttpOnly`, `Secure`, `SameSite`
 - **Password Requirements:** Minimalne wymagania dla haseł (długość, złożoność)
 - **Session Management:** Automatyczne wylogowanie po wygaśnięciu sesji
+- **Antiforgery Protection:** Middleware `UseAntiforgery()` włączony przed uwierzytelnianiem dla ochrony przed atakami CSRF
+- **Cookie Bridge Security:** Kontroler `AuthController` używa `[AllowAnonymous]` dla akcji logowania, `[Authorize]` dla wylogowania
 
 ### Diagram architektury
 
@@ -306,46 +336,54 @@ graph TB
     User[Użytkownik] -->|1. Request| App[Blazor Server App]
     App -->|2. Sprawdź autentykację| AuthState[AuthenticationStateProvider]
     AuthState -->|3. Niezalogowany| LoginPage[Strona Logowania<br/>/login]
-    LoginPage -->|4. Dane logowania| SignInMgr[SignInManager]
-    SignInMgr -->|5. Weryfikacja| IdentityDb[(IdentityDbContext<br/>SQL Server)]
-    IdentityDb -->|6. Zwróć użytkownika| SignInMgr
-    SignInMgr -->|7. Utwórz sesję| CookieAuth[Cookie Authentication]
-    CookieAuth -->|8. Przekieruj| KanbanPage[Strona Kanban<br/>/Kanban]
+    LoginPage -->|4. POST formularz| AuthController[AuthController<br/>/api/auth/login]
+    AuthController -->|5. PasswordSignInAsync| SignInMgr[SignInManager]
+    SignInMgr -->|6. Weryfikacja| IdentityDb[(IdentityDbContext<br/>PostgreSQL)]
+    IdentityDb -->|7. Zwróć użytkownika| SignInMgr
+    SignInMgr -->|8. Utwórz sesję| CookieAuth[Cookie Authentication<br/>HTTP Response Headers]
+    CookieAuth -->|9. Przekieruj| KanbanPage[Strona Kanban<br/>/kanban]
     
-    KanbanPage -->|9. Sprawdź rolę| AuthState
-    AuthState -->|10. Manager| ManagerUI[Panel Managera<br/>+ Kanban]
-    AuthState -->|11. Operator| OperatorUI[Tylko Kanban]
+    KanbanPage -->|10. Sprawdź rolę| AuthState
+    AuthState -->|11. Manager| ManagerUI[Panel Managera<br/>+ Kanban]
+    AuthState -->|12. Operator| OperatorUI[Tylko Kanban]
     
-    ManagerUI -->|12. Autoryzacja| AuthPolicy[Authorization Policies]
-    OperatorUI -->|13. Autoryzacja| AuthPolicy
-    AuthPolicy -->|14. Weryfikacja| IdentityDb
+    ManagerUI -->|13. Autoryzacja| AuthPolicy[Authorization Policies]
+    OperatorUI -->|14. Autoryzacja| AuthPolicy
+    AuthPolicy -->|15. Weryfikacja| IdentityDb
+    
+    LogoutForm[Formularz wylogowania] -->|POST| LogoutController[AuthController<br/>/api/auth/logout]
+    LogoutController -->|SignOutAsync| SignInMgr
+    SignInMgr -->|Usuń cookie| CookieAuth
+    CookieAuth -->|Przekieruj| LoginPage
     
     SeedScript[Database Seeder] -->|Inicjalizacja| IdentityDb
     SeedScript -.->|Tworzy| ManagerUser[Manager: menago/menago]
     SeedScript -.->|Tworzy| OperatorUser[Operator: operator/operator]
     
     style LoginPage fill:#e1f5ff
+    style AuthController fill:#ffe1f5
     style IdentityDb fill:#fff4e1
     style CookieAuth fill:#ffe1f5
     style ManagerUI fill:#e1ffe1
     style OperatorUI fill:#ffe1e1
+    style LogoutController fill:#ffe1f5
 ```
 
 ### Implementacja techniczna
 
-#### Konfiguracja w Program.cs / Startup.cs
+#### Konfiguracja w Program.cs
 
 ```csharp
 // Dodanie Identity
-builder.Services.AddIdentity<IdentityUser, IdentityRole>(options => {
-    options.Password.RequireDigit = true;
-    options.Password.RequiredLength = 6;
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options => {
+    options.Password.RequiredLength = 1;
+    options.Password.RequireDigit = false;
     options.SignIn.RequireConfirmedAccount = false;
 })
-.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// Wymuszona autentykacja
+// Konfiguracja cookie authentication
 builder.Services.ConfigureApplicationCookie(options => {
     options.LoginPath = "/login";
     options.AccessDeniedPath = "/login";
@@ -353,12 +391,34 @@ builder.Services.ConfigureApplicationCookie(options => {
     options.SlidingExpiration = true;
 });
 
+// Dodanie obsługi kontrolerów dla Cookie Bridge
+builder.Services.AddControllers();
+
 // Polityki autoryzacji
-builder.Services.AddAuthorization(options => {
-    options.AddPolicy("ManagerOnly", policy => 
-        policy.RequireRole("Manager"));
-});
+builder.Services.AddAuthorization();
+
+// Middleware pipeline
+app.UseRouting();
+app.UseAntiforgery(); // Przed uwierzytelnianiem dla ochrony CSRF
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers(); // Mapowanie AuthController
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
 ```
+
+#### Kluczowe punkty końcowe
+
+- **POST /api/auth/login**: Akcja logowania w `AuthController`
+  - Przyjmuje `username` i `password` jako `[FromForm]`
+  - Używa `SignInManager.PasswordSignInAsync` z `isPersistent: true`
+  - Przekierowuje do `/kanban` (sukces) lub `/login?error=true` (porażka)
+  - Oznaczona `[AllowAnonymous]`
+
+- **POST /api/auth/logout**: Akcja wylogowania w `AuthController`
+  - Wywołuje `SignInManager.SignOutAsync`
+  - Przekierowuje do `/login`
+  - Oznaczona `[Authorize]` (wymaga zalogowania)
 
 #### Seedowanie użytkowników
 
@@ -383,6 +443,8 @@ if (!context.Users.Any()) {
 - **AuthorizeView:** W komponentach wymagających autoryzacji
 - **NavigationManager:** Przekierowania po logowaniu/wylogowaniu
 - **AuthenticationState:** Dostęp do informacji o użytkowniku w komponentach
+- **Render Mode:** `InteractiveServerRenderMode(prerender: false)` - wyłączony prerendering dla poprawnego działania SignalR
+- **Formularze HTML:** Standardowe formularze POST zamiast `EditForm` w komponentach logowania/wylogowania (wymagane dla Cookie Bridge)
 
 ---
 ---

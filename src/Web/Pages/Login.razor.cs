@@ -1,83 +1,63 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.AspNetCore.Identity;
-using MudBlazor;
 using KanbanLite.Web.Services;
-using DataAccess.Identity;
 
 namespace KanbanLite.Web.Pages;
 
 public partial class Login
 {
-    [Inject] private IAuthService AuthService { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
-    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = null!;
-    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IAuthService AuthService { get; set; } = null!;
 
-    private LoginModel _model = new();
-    private string? _errorMessage;
-    private bool _loading;
+    private bool _hasError;
+    private LoginModel _loginModel = new();
+    private bool _isLoading;
+
+    protected override void OnInitialized()
+    {
+        // Sprawdzenie parametru query string 'error'
+        var uri = new Uri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        _hasError = query.TryGetValue("error", out var errorValues) &&
+                   errorValues.Count > 0 &&
+                   errorValues[0] == "true";
+    }
 
     private async Task HandleLogin()
     {
-        _loading = true;
-        _errorMessage = null;
-        // Nie wywołujemy StateHasChanged() przed logowaniem - pozwalamy na zakończenie połączenia SignalR
-
-        try
+        if (string.IsNullOrWhiteSpace(_loginModel.Username) || string.IsNullOrWhiteSpace(_loginModel.Password))
         {
-            // Weryfikacja logowania (bez SignInAsync)
-            var result = await AuthService.LoginAsync(_model.Username, _model.Password, isPersistent: false);
-            
-            if (result.IsSuccess)
-            {
-                // Opóźnienie do następnego ticka event loop - po zakończeniu połączenia SignalR
-                await Task.Delay(1000);
-                
-                // Logowanie przez SignInManager - wywoływane po zakończeniu połączenia SignalR
-                //await SignInManager.SignInAsync(result.Value.User, isPersistent: false);
-                
-                // Przekierowanie na returnUrl lub domyślnie na /kanban
-                // Blazor Server automatycznie odświeży stan autoryzacji po przekierowaniu
-                var uri = new Uri(Navigation.Uri);
-                var returnUrl = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
-                    .TryGetValue("returnUrl", out var returnUrlValues) && returnUrlValues.Count > 0
-                    ? returnUrlValues[0] ?? "/kanban"
-                    : "/kanban";
-                
-                // Unikaj przekierowania na /login lub / (które przekierowuje na /login)
-                if (returnUrl == "/login" || returnUrl == "/")
-                {
-                    returnUrl = "/kanban";
-                }
-                
-                Navigation.NavigateTo(returnUrl, replace: true);
-                Snackbar.Add("Zalogowano pomyślnie", Severity.Success);
-            }
-            else
-            {
-                _errorMessage = result.Error?.Message ?? "Nieprawidłowa nazwa użytkownika lub hasło";
-            }
-        }
-        catch (Exception)
-        {
-            _errorMessage = "Wystąpił błąd podczas logowania. Spróbuj ponownie.";
-            // Logowanie błędu (w produkcji użyj ILogger)
-        }
-        finally
-        {
-            _loading = false;
+            _hasError = true;
             StateHasChanged();
+            return;
         }
+
+        _isLoading = true;
+        _hasError = false;
+        StateHasChanged();
+
+        var redirectUrl = await AuthService.LoginAsync(_loginModel.Username, _loginModel.Password);
+
+        _isLoading = false;
+
+        if (!string.IsNullOrEmpty(redirectUrl))
+        {
+            Navigation.NavigateTo(redirectUrl);
+        }
+        else
+        {
+            _hasError = true;
+        }
+        StateHasChanged();
     }
 
     private void ClearError()
     {
-        _errorMessage = null;
+        _hasError = false;
         StateHasChanged();
     }
 
-    private sealed class LoginModel
+    private class LoginModel
     {
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;

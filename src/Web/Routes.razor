@@ -1,8 +1,143 @@
 @using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
 
-<MudThemeProvider />
+<MudThemeProvider Theme="@_theme" />
 <MudDialogProvider />
 <MudSnackbarProvider />
+
+@code {
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#6366f1",      // Indigo - stonowany niebieski
+            Secondary = "#8b5cf6",    // Fiolet - stonowany fiolet
+            Tertiary = "#ec4899",     // Róż - stonowany róż
+            Background = "#f8fafc",   // Bardzo jasny szary
+            Surface = "#ffffff",       // Biały
+            AppbarBackground = "#4f46e5", // Ciemniejszy indigo dla appbar
+            DrawerBackground = "#1e293b", // Ciemny szary dla sidebar
+            DrawerText = "#f1f5f9",   // Jasny tekst
+            Success = "#10b981",      // Zielony
+            Warning = "#f59e0b",      // Pomarańczowy
+            Error = "#ef4444",        // Czerwony
+            Info = "#3b82f6",         // Niebieski
+            TextPrimary = "#1e293b",  // Ciemny szary dla tekstu
+            TextSecondary = "#64748b", // Średni szary dla tekstu
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#818cf8",      // Jaśniejszy indigo dla dark mode
+            Secondary = "#a78bfa",    // Jaśniejszy fiolet
+            Tertiary = "#f472b6",     // Jaśniejszy róż
+            Background = "#0f172a",   // Bardzo ciemny niebieski
+            Surface = "#1e293b",      // Ciemny szary
+            AppbarBackground = "#312e81", // Ciemny indigo
+            DrawerBackground = "#0f172a", // Ciemny dla sidebar
+            DrawerText = "#f1f5f9",   // Jasny tekst
+            Success = "#34d399",      // Jaśniejszy zielony
+            Warning = "#fbbf24",      // Jaśniejszy pomarańczowy
+            Error = "#f87171",        // Jaśniejszy czerwony
+            Info = "#60a5fa",         // Jaśniejszy niebieski
+            TextPrimary = "#f1f5f9",  // Jasny tekst
+            TextSecondary = "#cbd5e1", // Średni jasny tekst
+        },
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "8px",
+            AppbarHeight = "64px",
+            DrawerWidthLeft = "280px",
+            DrawerWidthRight = "320px"
+        },
+        Typography = new Typography()
+        {
+            Default = new DefaultTypography()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
+                FontSize = "0.875rem",
+                FontWeight = "400",
+                LineHeight = "1.5",
+                LetterSpacing = "0.00938em"
+            },
+            H1 = new H1Typography()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
+                FontSize = "2.5rem",
+                FontWeight = "500",
+                LineHeight = "1.2",
+                LetterSpacing = "-0.01562em"
+            },
+            H2 = new H2Typography()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
+                FontSize = "2rem",
+                FontWeight = "500",
+                LineHeight = "1.3",
+                LetterSpacing = "-0.00833em"
+            },
+            H3 = new H3Typography()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
+                FontSize = "1.75rem",
+                FontWeight = "500",
+                LineHeight = "1.4"
+            },
+            H4 = new H4Typography()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
+                FontSize = "1.5rem",
+                FontWeight = "500",
+                LineHeight = "1.4"
+            },
+            H5 = new H5Typography()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
+                FontSize = "1.25rem",
+                FontWeight = "500",
+                LineHeight = "1.5"
+            },
+            H6 = new H6Typography()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" },
+                FontSize = "1rem",
+                FontWeight = "500",
+                LineHeight = "1.6"
+            }
+        },
+        Shadows = new Shadow()
+        {
+            Elevation = new string[]
+            {
+                "none", // 0
+                "0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12)", // 1
+                "0px 3px 1px -2px rgba(0,0,0,0.2), 0px 2px 2px 0px rgba(0,0,0,0.14), 0px 1px 5px 0px rgba(0,0,0,0.12)", // 2
+                "0px 3px 3px -2px rgba(0,0,0,0.2), 0px 3px 4px 0px rgba(0,0,0,0.14), 0px 1px 8px 0px rgba(0,0,0,0.12)", // 3
+                "0px 2px 4px -1px rgba(0,0,0,0.2), 0px 4px 5px 0px rgba(0,0,0,0.14), 0px 1px 10px 0px rgba(0,0,0,0.12)", // 4
+                "0px 3px 5px -1px rgba(0,0,0,0.2), 0px 5px 8px 0px rgba(0,0,0,0.14), 0px 1px 14px 0px rgba(0,0,0,0.12)", // 5
+                "0px 3px 5px -1px rgba(0,0,0,0.2), 0px 6px 10px 0px rgba(0,0,0,0.14), 0px 1px 18px 0px rgba(0,0,0,0.12)", // 6
+                "0px 4px 5px -2px rgba(0,0,0,0.2), 0px 7px 10px 1px rgba(0,0,0,0.14), 0px 2px 16px 1px rgba(0,0,0,0.12)", // 7
+                "0px 5px 5px -3px rgba(0,0,0,0.2), 0px 8px 10px 1px rgba(0,0,0,0.14), 0px 3px 14px 2px rgba(0,0,0,0.12)", // 8
+                "0px 5px 6px -3px rgba(0,0,0,0.2), 0px 9px 12px 1px rgba(0,0,0,0.14), 0px 3px 16px 2px rgba(0,0,0,0.12)", // 9
+                "0px 6px 6px -3px rgba(0,0,0,0.2), 0px 10px 14px 1px rgba(0,0,0,0.14), 0px 4px 18px 3px rgba(0,0,0,0.12)", // 10
+                "0px 6px 7px -4px rgba(0,0,0,0.2), 0px 11px 15px 1px rgba(0,0,0,0.14), 0px 4px 20px 3px rgba(0,0,0,0.12)", // 11
+                "0px 7px 8px -4px rgba(0,0,0,0.2), 0px 12px 17px 2px rgba(0,0,0,0.14), 0px 5px 22px 4px rgba(0,0,0,0.12)", // 12
+                "0px 7px 8px -4px rgba(0,0,0,0.2), 0px 13px 19px 2px rgba(0,0,0,0.14), 0px 5px 24px 4px rgba(0,0,0,0.12)", // 13
+                "0px 7px 9px -4px rgba(0,0,0,0.2), 0px 14px 21px 2px rgba(0,0,0,0.14), 0px 5px 26px 4px rgba(0,0,0,0.12)", // 14
+                "0px 8px 9px -5px rgba(0,0,0,0.2), 0px 15px 22px 2px rgba(0,0,0,0.14), 0px 6px 28px 5px rgba(0,0,0,0.12)", // 15
+                "0px 8px 10px -5px rgba(0,0,0,0.2), 0px 16px 24px 2px rgba(0,0,0,0.14), 0px 6px 30px 5px rgba(0,0,0,0.12)", // 16
+                "0px 8px 11px -5px rgba(0,0,0,0.2), 0px 17px 26px 2px rgba(0,0,0,0.14), 0px 6px 32px 5px rgba(0,0,0,0.12)", // 17
+                "0px 9px 11px -5px rgba(0,0,0,0.2), 0px 18px 28px 2px rgba(0,0,0,0.14), 0px 7px 34px 6px rgba(0,0,0,0.12)", // 18
+                "0px 9px 12px -6px rgba(0,0,0,0.2), 0px 19px 29px 2px rgba(0,0,0,0.14), 0px 7px 36px 6px rgba(0,0,0,0.12)", // 19
+                "0px 10px 13px -6px rgba(0,0,0,0.2), 0px 20px 31px 3px rgba(0,0,0,0.14), 0px 8px 38px 7px rgba(0,0,0,0.12)", // 20
+                "0px 10px 13px -6px rgba(0,0,0,0.2), 0px 21px 33px 3px rgba(0,0,0,0.14), 0px 8px 40px 7px rgba(0,0,0,0.12)", // 21
+                "0px 10px 14px -6px rgba(0,0,0,0.2), 0px 22px 35px 3px rgba(0,0,0,0.14), 0px 8px 42px 7px rgba(0,0,0,0.12)", // 22
+                "0px 11px 14px -7px rgba(0,0,0,0.2), 0px 23px 36px 3px rgba(0,0,0,0.14), 0px 9px 44px 8px rgba(0,0,0,0.12)", // 23
+                "0px 11px 15px -7px rgba(0,0,0,0.2), 0px 24px 38px 3px rgba(0,0,0,0.14), 0px 9px 46px 8px rgba(0,0,0,0.12)", // 24
+                "0px 11px 15px -7px rgba(0,0,0,0.2), 0px 25px 40px 3px rgba(0,0,0,0.14), 0px 9px 48px 8px rgba(0,0,0,0.12)"  // 25
+            }
+        }
+    };
+}
 
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(App).Assembly">

@@ -1,63 +1,48 @@
 @page "/login"
 @attribute [AllowAnonymous]
 @using Microsoft.AspNetCore.Authorization
-@using MudBlazor
-@using KanbanLite.Web.Services
 
 <PageTitle>Logowanie - KanbanLite</PageTitle>
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
-    <MudCard>
-        <MudCardContent>
-            <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">
-                KanbanLite
-            </MudText>
-            <MudText Typo="Typo.body2" Align="Align.Center" Class="mb-6" Color="Color.Secondary">
-                Zaloguj się do systemu
-            </MudText>
+<div class="login-container">
+    <div class="login-card">
+        <h1 class="login-title">KanbanLite</h1>
+        <p class="login-subtitle">Zaloguj się do systemu</p>
 
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <MudAlert Severity="Severity.Error" Class="mb-4" Dismissible="true" OnClose="ClearError">
-                    @_errorMessage
-                </MudAlert>
-            }
+        @if (_hasError)
+        {
+            <div class="alert alert-error mb-4">
+                <span>Nieprawidłowa nazwa użytkownika lub hasło</span>
+                <button type="button" class="alert-close" @onclick="ClearError" aria-label="Zamknij">×</button>
+            </div>
+        }
 
-            <EditForm Model="_model" OnValidSubmit="HandleLogin">
-                <DataAnnotationsValidator />
-                <MudTextField @bind-Value="_model.Username"
-                              Label="Nazwa użytkownika"
-                              Variant="Variant.Outlined"
-                              Required="true"
-                              RequiredError="Nazwa użytkownika jest wymagana"
-                              FullWidth="true"
-                              Class="mb-4"
-                              Immediate="true" />
-                <MudTextField @bind-Value="_model.Password"
-                              Label="Hasło"
-                              InputType="InputType.Password"
-                              Variant="Variant.Outlined"
-                              Required="true"
-                              RequiredError="Hasło jest wymagane"
-                              FullWidth="true"
-                              Class="mb-4" Immediate="true" />
-                <MudButton ButtonType="ButtonType.Submit"
-                           Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           FullWidth="true"
-                           Disabled="_loading"
-                           Class="mt-4">
-                    @if (_loading)
-                    {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                        <MudText Class="ms-2">Logowanie...</MudText>
-                    }
-                    else
-                    {
-                        <MudText>Zaloguj</MudText>
-                    }
-                </MudButton>
-            </EditForm>
-        </MudCardContent>
-    </MudCard>
-</MudContainer>
+        <form @onsubmit="HandleLogin" @onsubmit:preventDefault="true" class="login-form">
+            <div class="form-group">
+                <label for="username" class="form-label">Nazwa użytkownika</label>
+                <input type="text" 
+                       @bind="_loginModel.Username"
+                       @bind:event="oninput"
+                       id="username" 
+                       class="form-input" 
+                       autocomplete="username"
+                       required />
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">Hasło</label>
+                <input type="password" 
+                       @bind="_loginModel.Password"
+                       @bind:event="oninput"
+                       id="password" 
+                       class="form-input" 
+                       autocomplete="current-password" 
+                       required />
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-full" disabled="@_isLoading">
+                <span>@(_isLoading ? "Logowanie..." : "Zaloguj")</span>
+            </button>
+        </form>
+    </div>
+</div>

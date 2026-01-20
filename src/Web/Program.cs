@@ -3,7 +3,6 @@ using DataAccess.Identity;
 using KanbanLite.Application;
 using KanbanLite.Application.Security;
 using KanbanLite.Web;
-using KanbanLite.Web.Data;
 using KanbanLite.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -13,6 +12,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,7 +22,8 @@ builder.Services.AddRazorPages(options =>
 {
     options.Conventions.ConfigureFilter(new IgnoreAntiforgeryTokenAttribute());
 });
-builder.Services.AddSingleton<WeatherForecastService>();
+// Dodanie obsługi kontrolerów dla AuthController (Cookie Bridge)
+builder.Services.AddControllers();
 
 // MudBlazor
 builder.Services.AddMudServices();
@@ -42,10 +43,10 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireLowercase = false;
     options.Password.RequireUppercase = false;
     options.Password.RequireNonAlphanumeric = false;
-    
+
     // Konfiguracja użytkownika
     options.User.RequireUniqueEmail = false;
-    
+
     // Konfiguracja logowania
     options.SignIn.RequireConfirmedAccount = false;
     options.SignIn.RequireConfirmedEmail = false;
@@ -75,8 +76,13 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, ClaimsPrincipalCurrentUser>();
 builder.Services.AddKanbanLiteApplication();
 
-// Auth Service
-builder.Services.AddScoped<IAuthService, AuthService>();
+// Auth Service - Typed HttpClient
+builder.Services.AddHttpClient<IAuthService, AuthService>(client =>
+{
+    // Adres powinien być pobierany z konfiguracji, z fallbackiem na localhost
+    var baseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5145";
+    client.BaseAddress = new Uri(baseUrl);
+});
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 var app = builder.Build();
@@ -97,6 +103,9 @@ app.UseAntiforgery();
 // Authentication & Authorization middleware
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Mapowanie kontrolerów (AuthController dla Cookie Bridge)
+app.MapControllers();
 
 // Wyłączenie anti-forgery dla Razor Components - wszystko działa przez SignalR, CSRF nie dotyczy
 app.MapRazorComponents<App>()

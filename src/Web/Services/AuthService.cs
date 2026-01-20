@@ -1,89 +1,59 @@
-using System.Security.Claims;
-using DataAccess.Identity;
-using KanbanLite.Application.Common;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Components.Authorization;
+using System.Net.Http;
 
 namespace KanbanLite.Web.Services;
 
 public sealed class AuthService : IAuthService
 {
-    private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly HttpClient _httpClient;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
-        SignInManager<ApplicationUser> signInManager,
-        UserManager<ApplicationUser> userManager,
+        HttpClient httpClient,
         ILogger<AuthService> logger)
     {
-        _signInManager = signInManager;
-        _userManager = userManager;
+        _httpClient = httpClient;
         _logger = logger;
     }
 
-    public async Task<Result<LoginResult>> LoginAsync(string username, string password, bool isPersistent = false)
+    public async Task<string?> LoginAsync(string username, string password)
     {
-        if (string.IsNullOrWhiteSpace(username))
-        {
-            return Result<LoginResult>.Fail(
-                AppError.ValidationFailed("Nazwa użytkownika jest wymagana.", new Dictionary<string, IReadOnlyList<string>>
-                {
-                    ["username"] = ["Nazwa użytkownika nie może być pusta."]
-                }));
-        }
-
-        if (string.IsNullOrWhiteSpace(password))
-        {
-            return Result<LoginResult>.Fail(
-                AppError.ValidationFailed("Hasło jest wymagane.", new Dictionary<string, IReadOnlyList<string>>
-                {
-                    ["password"] = ["Hasło nie może być puste."]
-                }));
-        }
-
         try
         {
-            var user = await _userManager.FindByNameAsync(username);
-            if (user is null)
+            var formData = new FormUrlEncodedContent(new[]
             {
-                _logger.LogWarning("Próba logowania nieistniejącym użytkownikiem: {Username}", username);
-                return Result<LoginResult>.Fail(
-                    AppError.ValidationFailed("Nieprawidłowa nazwa użytkownika lub hasło."));
+                new KeyValuePair<string, string>("username", username),
+                new KeyValuePair<string, string>("password", password)
+            });
+
+            var response = await _httpClient.PostAsync("/api/auth/login", formData);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var redirectUrl = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation("Logowanie użytkownika {Username} zakończone pomyślnie", username);
+                return redirectUrl;
             }
 
-            var result = await _signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: false);
-            
-            if (!result.Succeeded)
-            {
-                _logger.LogWarning("Nieudana próba logowania dla użytkownika: {Username}", username);
-                return Result<LoginResult>.Fail(
-                    AppError.ValidationFailed("Nieprawidłowa nazwa użytkownika lub hasło."));
-            }
-
-            // Pobranie ról użytkownika
-            var roles = await _userManager.GetRolesAsync(user);
-
-            _logger.LogInformation("Weryfikacja logowania użytkownika {Username} zakończona pomyślnie", username);
-
-            // Zwracamy użytkownika - SignInAsync zostanie wywołane w Login.razor.cs po zakończeniu połączenia SignalR
-            return Result<LoginResult>.Ok(new LoginResult(
-                user.Id,
-                user.UserName ?? username,
-                roles.ToList().AsReadOnly(),
-                user));
+            _logger.LogWarning("Nieudana próba logowania dla użytkownika: {Username}", username);
+            return null;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Błąd podczas logowania użytkownika: {Username}", username);
-            return Result<LoginResult>.Fail(
-                AppError.Unexpected("Wystąpił błąd podczas logowania. Spróbuj ponownie."));
+            return null;
         }
     }
 
     public async Task LogoutAsync()
     {
-        await _signInManager.SignOutAsync();
-        _logger.LogInformation("Użytkownik wylogował się");
+        try
+        {
+            var response = await _httpClient.PostAsync("/api/auth/logout", null);
+            _logger.LogInformation("Użytkownik wylogował się");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Błąd podczas wylogowania użytkownika");
+        }
     }
 }

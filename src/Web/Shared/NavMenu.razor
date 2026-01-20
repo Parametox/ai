@@ -18,6 +18,18 @@
                     Panel Managera
                 </MudNavLink>
             }
+            
+            <div class="mt-4">
+                <form action="api/auth/logout" method="post" style="display: inline;">
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Text"
+                               Color="Color.Error"
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Logout">
+                        Wyloguj
+                    </MudButton>
+                </form>
+            </div>
         </MudNavMenu>
     </Authorized>
 </AuthorizeView>
