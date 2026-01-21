@@ -1,4 +1,5 @@
 using DataAccess.Identity;
+using KanbanLite.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -11,14 +12,17 @@ namespace KanbanLite.Web.Controllers;
 [IgnoreAntiforgeryToken]
 public sealed class AuthController : ControllerBase
 {
-    private readonly SignInManager<ApplicationUser> _signInManager;
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ISessionService _sessionService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
-        SignInManager<ApplicationUser> signInManager,
+        UserManager<ApplicationUser> userManager,
+        ISessionService sessionService,
         ILogger<AuthController> logger)
     {
-        _signInManager = signInManager;
+        _userManager = userManager;
+        _sessionService = sessionService;
         _logger = logger;
     }
 
@@ -31,33 +35,42 @@ public sealed class AuthController : ControllerBase
             return Redirect("/login?error=true");
         }
 
-        var result = await _signInManager.PasswordSignInAsync(
-            username,
-            password,
-            isPersistent: true,
-            lockoutOnFailure: false);
-
-        if (result.Succeeded)
+        // Znajdź użytkownika
+        var user = await _userManager.FindByNameAsync(username);
+        if (user == null)
         {
-            _logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
-            
-            // Przekieruj na ReturnUrl lub domyślnie na /kanban
-            var redirectUrl = !string.IsNullOrEmpty(returnUrl) && returnUrl != "/"
-                ? returnUrl
-                : "/kanban";
-            
-            return Redirect(redirectUrl);
+            _logger.LogWarning("Nieudana próba logowania - użytkownik nie istnieje: {Username}", username);
+            return Redirect("/login?error=true");
         }
 
-        _logger.LogWarning("Nieudana próba logowania dla użytkownika: {Username}", username);
-        return Redirect("/login?error=true");
+        // Sprawdź hasło
+        var isPasswordValid = await _userManager.CheckPasswordAsync(user, password);
+        if (!isPasswordValid)
+        {
+            _logger.LogWarning("Nieudana próba logowania - nieprawidłowe hasło dla użytkownika: {Username}", username);
+            return Redirect("/login?error=true");
+        }
+
+        // Pobierz role użytkownika
+        var roles = await _userManager.GetRolesAsync(user);
+
+        // Ustaw sesję w SessionService
+        _sessionService.SetSession(user.Id, user.UserName ?? username, roles);
+
+        _logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
+        
+        // Przekieruj na ReturnUrl lub domyślnie na /kanban
+        var redirectUrl = !string.IsNullOrEmpty(returnUrl) && returnUrl != "/"
+            ? returnUrl
+            : "/kanban";
+        
+        return Redirect(redirectUrl);
     }
 
     [HttpPost("logout")]
-    [Authorize]
-    public async Task<IActionResult> Logout()
+    public IActionResult Logout()
     {
-        await _signInManager.SignOutAsync();
+        _sessionService.ClearSession();
         _logger.LogInformation("Użytkownik wylogował się");
         return Redirect("/login");
     }

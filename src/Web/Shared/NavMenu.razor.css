@@ -22,12 +22,8 @@
     margin-right: 0.5rem;
 }
 
-/* Wyrównanie przycisku Wyloguj do lewej */
-::deep .mud-button-root {
-    justify-content: flex-start !important;
-    text-align: left;
-}
-
-::deep .mud-button-start-icon {
-    margin-right: 0.5rem;
+/* Stylizacja wrappera dla przycisku Wyloguj */
+.logout-wrapper {
+    cursor: pointer;
+    width: 100%;
 }

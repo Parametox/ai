@@ -2,21 +2,27 @@ using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using KanbanLite.Contracts;
 using KanbanLite.Application.Services;
+using KanbanLite.Web.Services;
 using KanbanLite.Web.Components;
 
 namespace KanbanLite.Web.Pages.Manager;
 
 public partial class Dashboard
 {
+    [Inject] private ISessionService SessionService { get; set; } = null!;
+    [Inject] private NavigationManager Navigation { get; set; } = null!;
+    
     private DashboardDto? dashboardData;
     private bool loadingDashboard = true;
     private bool loadingOrders = false;
     private bool loadingFormats = false;
     private bool loadingRules = false;
+    private bool loadingProjects = false;
     
     private MudTable<OrderListItemDto>? ordersTable;
     private MudTable<ProductFormatDto>? formatsTable;
     private MudTable<BatchSplitRuleDto>? rulesTable;
+    private MudTable<ProjectListItemDto>? projectsTable;
     
     // Filtry historii zleceń
     private string orderSearchQuery = string.Empty;
@@ -25,9 +31,18 @@ public partial class Dashboard
     
     // Filtry formatów produktów
     private bool showInactiveFormats = false;
+    
+    // Filtry projektów
+    private bool? projectFilterCompleted = null;
 
     protected override async Task OnInitializedAsync()
     {
+        if (!SessionService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+        
         await LoadDashboardData();
     }
 
@@ -343,6 +358,96 @@ public partial class Dashboard
         catch (Exception ex)
         {
             Snackbar.Add($"Wystąpił błąd: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // Projects CRUD Methods
+    private async Task<TableData<ProjectListItemDto>> LoadProjectsData(TableState state, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            loadingProjects = true;
+            
+            var query = new ProjectQuery
+            {
+                IsCompleted = projectFilterCompleted,
+                Page = state.Page + 1,
+                PageSize = state.PageSize
+            };
+
+            var result = await ProjectService.GetAsync(query);
+            
+            if (result.IsSuccess)
+            {
+                return new TableData<ProjectListItemDto>
+                {
+                    TotalItems = (int)result.Value.Total,
+                    Items = result.Value.Items
+                };
+            }
+            else
+            {
+                Snackbar.Add($"Błąd podczas ładowania projektów: {result.Error.Message}", Severity.Error);
+                return new TableData<ProjectListItemDto> { TotalItems = 0, Items = Array.Empty<ProjectListItemDto>() };
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Wystąpił błąd: {ex.Message}", Severity.Error);
+            return new TableData<ProjectListItemDto> { TotalItems = 0, Items = Array.Empty<ProjectListItemDto>() };
+        }
+        finally
+        {
+            loadingProjects = false;
+        }
+    }
+
+    private async Task LoadProjects()
+    {
+        if (projectsTable != null)
+        {
+            await projectsTable.ReloadServerData();
+        }
+    }
+
+    private async Task OnProjectFilterChanged(bool? value)
+    {
+        projectFilterCompleted = value;
+        await LoadProjects();
+    }
+
+    private async Task ClearProjectFilters()
+    {
+        projectFilterCompleted = null;
+        await LoadProjects();
+    }
+
+    private async Task DeleteProject(long projectId)
+    {
+        bool? confirm = await DialogService.ShowMessageBox(
+            "Potwierdzenie usunięcia",
+            "Czy na pewno chcesz usunąć ten projekt? Ta operacja jest nieodwracalna.",
+            yesText: "Usuń", cancelText: "Anuluj");
+
+        if (confirm == true)
+        {
+            try
+            {
+                var result = await ProjectService.DeleteAsync(projectId);
+                if (result.IsSuccess)
+                {
+                    Snackbar.Add("Projekt został usunięty", Severity.Success);
+                    await LoadProjects();
+                }
+                else
+                {
+                    Snackbar.Add($"Błąd podczas usuwania projektu: {result.Error.Message}", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Wystąpił błąd: {ex.Message}", Severity.Error);
+            }
         }
     }
 }

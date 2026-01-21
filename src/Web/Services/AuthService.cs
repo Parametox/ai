@@ -1,17 +1,21 @@
-using System.Net.Http;
+using DataAccess.Identity;
+using Microsoft.AspNetCore.Identity;
 
 namespace KanbanLite.Web.Services;
 
 public sealed class AuthService : IAuthService
 {
-    private readonly HttpClient _httpClient;
+    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ISessionService _sessionService;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
-        HttpClient httpClient,
+        UserManager<ApplicationUser> userManager,
+        ISessionService sessionService,
         ILogger<AuthService> logger)
     {
-        _httpClient = httpClient;
+        _userManager = userManager;
+        _sessionService = sessionService;
         _logger = logger;
     }
 
@@ -19,23 +23,34 @@ public sealed class AuthService : IAuthService
     {
         try
         {
-            var formData = new FormUrlEncodedContent(new[]
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                new KeyValuePair<string, string>("username", username),
-                new KeyValuePair<string, string>("password", password)
-            });
-
-            var response = await _httpClient.PostAsync("/api/auth/login", formData);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var redirectUrl = await response.Content.ReadAsStringAsync();
-                _logger.LogInformation("Logowanie użytkownika {Username} zakończone pomyślnie", username);
-                return redirectUrl;
+                _logger.LogWarning("Próba logowania z pustymi danymi");
+                return null;
             }
 
-            _logger.LogWarning("Nieudana próba logowania dla użytkownika: {Username}", username);
-            return null;
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null)
+            {
+                _logger.LogWarning("Nieudana próba logowania - użytkownik nie istnieje: {Username}", username);
+                return null;
+            }
+
+            var isPasswordValid = await _userManager.CheckPasswordAsync(user, password);
+            if (!isPasswordValid)
+            {
+                _logger.LogWarning("Nieudana próba logowania - nieprawidłowe hasło dla użytkownika: {Username}", username);
+                return null;
+            }
+
+            // Pobierz role użytkownika
+            var roles = await _userManager.GetRolesAsync(user);
+            
+            // Ustawienie sesji w SessionService
+            _sessionService.SetSession(user.Id, user.UserName ?? username, roles);
+            _logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
+            
+            return "/kanban";
         }
         catch (Exception ex)
         {
@@ -44,16 +59,18 @@ public sealed class AuthService : IAuthService
         }
     }
 
-    public async Task LogoutAsync()
+    public Task LogoutAsync()
     {
         try
         {
-            var response = await _httpClient.PostAsync("/api/auth/logout", null);
+            _sessionService.ClearSession();
             _logger.LogInformation("Użytkownik wylogował się");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Błąd podczas wylogowania użytkownika");
         }
+        
+        return Task.CompletedTask;
     }
 }

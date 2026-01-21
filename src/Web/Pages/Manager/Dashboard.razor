@@ -1,12 +1,12 @@
 @page "/manager/dashboard"
+@layout MainLayout
 @using KanbanLite.Contracts
 @using KanbanLite.Application.Services
-@using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Manager")]
 @inject IDashboardService DashboardService
 @inject IOrderService OrderService
 @inject IBatchSplitRuleService BatchSplitRuleService
 @inject IProductFormatService ProductFormatService
+@inject IProjectService ProjectService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 @inject IDialogService DialogService
@@ -314,6 +314,80 @@
                         </RowTemplate>
                         <PagerContent>
                             <MudTablePager PageSizeOptions="new int[]{10, 25, 50}" />
+                        </PagerContent>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- Projekty Tab -->
+        <MudTabPanel Text="Projekty" Icon="@Icons.Material.Filled.Folder">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h5" Class="mb-4">Lista projektów</MudText>
+                </MudItem>
+                
+                <!-- Filtry -->
+                <MudItem xs="12" md="4">
+                    <MudSelect Value="projectFilterCompleted"
+                               ValueChanged="OnProjectFilterChanged"
+                               Label="Status projektu"
+                               Variant="Variant.Outlined"
+                               T="bool?"
+                               Clearable="true"
+                               Class="dashboard-filter-input">
+                        <MudSelectItem Value="@((bool?)null)">Wszystkie</MudSelectItem>
+                        <MudSelectItem Value="@((bool?)false)">Aktywne</MudSelectItem>
+                        <MudSelectItem Value="@((bool?)true)">Zakończone</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudButton OnClick="ClearProjectFilters" 
+                               Variant="Variant.Outlined" 
+                               StartIcon="@Icons.Material.Filled.Clear"
+                               FullWidth="true">
+                        Wyczyść
+                    </MudButton>
+                </MudItem>
+
+                <!-- Tabela projektów -->
+                <MudItem xs="12">
+                    <MudTable @ref="projectsTable" 
+                              ServerData="@(new Func<TableState, CancellationToken, Task<TableData<ProjectListItemDto>>>(LoadProjectsData))"
+                              Hover="true" 
+                              Loading="@loadingProjects"
+                              LoadingProgressColor="Color.Info"
+                              T="ProjectListItemDto">
+                        <HeaderContent>
+                            <MudTh><MudTableSortLabel SortLabel="ProjectNumber" T="ProjectListItemDto">Numer projektu</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="OrderNumber" T="ProjectListItemDto">Numer zlecenia</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortLabel="DueDate" T="ProjectListItemDto">Termin realizacji</MudTableSortLabel></MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Akcje</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Numer projektu">@context.ProjectNumber</MudTd>
+                            <MudTd DataLabel="Numer zlecenia">@context.OrderNumber</MudTd>
+                            <MudTd DataLabel="Termin realizacji">@context.DueDate.ToString("dd.MM.yyyy")</MudTd>
+                            <MudTd DataLabel="Status">
+                                @if (context.IsCompleted)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Zakończony</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Info" Size="Size.Small">Aktywny</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Akcje">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                               Color="Color.Error" 
+                                               Size="Size.Small"
+                                               OnClick="@(() => DeleteProject(context.Id))" />
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[]{10, 25, 50, 100}" />
                         </PagerContent>
                     </MudTable>
                 </MudItem>

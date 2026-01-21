@@ -9,7 +9,7 @@ using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : IProjectService
+public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IProjectService
 {
     public async Task<Result<PagedResult<ProjectListItemDto>>> GetAsync(ProjectQuery query, CancellationToken ct = default)
     {
@@ -38,6 +38,8 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var baseQuery =
                 from p in db.Projects.AsNoTracking()
                 join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
@@ -93,6 +95,8 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var header = await (
                 from p in db.Projects.AsNoTracking()
                 join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
@@ -174,6 +178,8 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var project = await db.Projects.SingleOrDefaultAsync(x => x.Id == projectId, ct);
             if (project is null)
             {
@@ -213,7 +219,7 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
             var now = DateTimeOffset.UtcNow;
 
             IDbContextTransaction? tx = null;
-            if (SupportsTransactions())
+            if (SupportsTransactions(db))
             {
                 tx = await db.Database.BeginTransactionAsync(ct);
             }
@@ -262,11 +268,97 @@ public sealed class ProjectService(AppDbContext db, ICurrentUser currentUser) : 
         }
     }
 
-    private bool SupportsTransactions()
+    private static bool SupportsTransactions(AppDbContext db)
         => !string.Equals(
             db.Database.ProviderName,
             "Microsoft.EntityFrameworkCore.InMemory",
             StringComparison.Ordinal);
+
+    public async Task<Result> DeleteAsync(long projectId, CancellationToken ct = default)
+    {
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do usuwania projektu.");
+        if (authError is not null)
+        {
+            return Result.Fail(authError);
+        }
+
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
+            var project = await db.Projects.SingleOrDefaultAsync(x => x.Id == projectId, ct);
+            if (project is null)
+            {
+                return Result.Fail(AppError.NotFound($"Projekt o id={projectId} nie istnieje."));
+            }
+
+            IDbContextTransaction? tx = null;
+            if (SupportsTransactions(db))
+            {
+                tx = await db.Database.BeginTransactionAsync(ct);
+            }
+
+            try
+            {
+                // Pobierz wszystkie batche projektu
+                var batches = await db.Batches
+                    .Where(x => x.ProjectId == projectId)
+                    .ToListAsync(ct);
+
+                if (batches.Any())
+                {
+                    // Pobierz wszystkie ID batchy
+                    var batchIds = batches.Select(b => b.Id).ToList();
+
+                    // Usuń wpisy audytu dla wszystkich batchy
+                    var auditLogs = await db.BatchAuditLog
+                        .Where(x => batchIds.Contains(x.BatchId))
+                        .ToListAsync(ct);
+                    
+                    if (auditLogs.Any())
+                    {
+                        db.BatchAuditLog.RemoveRange(auditLogs);
+                    }
+
+                    // Usuń wszystkie batche
+                    db.Batches.RemoveRange(batches);
+                }
+
+                // Usuń projekt
+                db.Projects.Remove(project);
+
+                await db.SaveChangesAsync(ct);
+
+                if (tx is not null)
+                {
+                    await tx.CommitAsync(ct);
+                }
+
+                return Result.Ok();
+            }
+            finally
+            {
+                if (tx is not null)
+                {
+                    await tx.DisposeAsync();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (DbUpdateException ex)
+        {
+            return Result.Fail(
+                AppError.Conflict("Nie udało się usunąć projektu (konflikt lub naruszenie ograniczeń danych)."+ ex.Message));
+        }
+        catch (Exception)
+        {
+            return Result.Fail(
+                AppError.Unexpected("Nieoczekiwany błąd podczas usuwania projektu."));
+        }
+    }
 
     private static int ProgressPercentFromStage(ProductionStage stage)
         => stage switch

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class BatchAuditService(AppDbContext db, ICurrentUser currentUser) : IBatchAuditService
+public sealed class BatchAuditService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IBatchAuditService
 {
     private static readonly string[] AllowedRoles = ["Manager", "Operator"];
 
@@ -40,6 +40,8 @@ public sealed class BatchAuditService(AppDbContext db, ICurrentUser currentUser)
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var batchExists = await db.Batches.AsNoTracking().AnyAsync(x => x.Id == batchId, ct);
             if (!batchExists)
             {

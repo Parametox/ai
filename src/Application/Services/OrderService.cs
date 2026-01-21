@@ -11,7 +11,7 @@ using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IOrderService
+public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IOrderService
 {
     public async Task<Result<CreateOrderResult>> CreateAsync(CreateOrderRequest request, CancellationToken ct = default)
     {
@@ -39,6 +39,8 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var productFormat = await db.ProductFormats.SingleOrDefaultAsync(x => x.Id == normalized.ProductFormatId, ct);
             if (productFormat is null)
             {
@@ -54,7 +56,7 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
                     new Dictionary<string, IReadOnlyList<string>> { ["productFormatId"] = ["Wybierz aktywny format."] }));
             }
 
-            var splitRule = await FindActiveSplitRuleForQuantityAsync(normalized.Quantity, ct);
+            var splitRule = await FindActiveSplitRuleForQuantityAsync(db, normalized.Quantity, ct);
             if (splitRule is null)
             {
                 return Result<CreateOrderResult>.Fail(AppError.ValidationFailed(
@@ -88,7 +90,7 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
             var batches = CreateBatches(project, orderQty: order.Quantity, splitRule, now);
 
             IDbContextTransaction? tx = null;
-            if (SupportsTransactions())
+            if (SupportsTransactions(db))
             {
                 tx = await db.Database.BeginTransactionAsync(ct);
             }
@@ -189,6 +191,8 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var baseQuery =
                 from o in db.Orders.AsNoTracking()
                 join pf in db.ProductFormats.AsNoTracking() on o.ProductFormatId equals pf.Id
@@ -258,6 +262,8 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var header = await (
                 from o in db.Orders.AsNoTracking()
                 join pf in db.ProductFormats.AsNoTracking() on o.ProductFormatId equals pf.Id
@@ -308,7 +314,7 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
         }
     }
 
-    private bool SupportsTransactions()
+    private static bool SupportsTransactions(AppDbContext db)
         => !string.Equals(
             db.Database.ProviderName,
             "Microsoft.EntityFrameworkCore.InMemory",
@@ -355,7 +361,7 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
             : null;
     }
 
-    private async Task<BatchSplitRule?> FindActiveSplitRuleForQuantityAsync(int quantity, CancellationToken ct)
+    private static async Task<BatchSplitRule?> FindActiveSplitRuleForQuantityAsync(AppDbContext db, int quantity, CancellationToken ct)
     {
         // Zakładamy brak overlapów aktywnych (walidowane w BatchSplitRuleService w przyszłości).
         // Dobieramy najbardziej "szczegółową" regułę: najwyższy MinQty, a przy remisie najniższy MaxQty.
@@ -370,49 +376,83 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
 
     private static List<Batch> CreateBatches(Project project, int orderQty, BatchSplitRule splitRule, DateTimeOffset now)
     {
-        // baseSize = ceil(orderQty * percent / 100)
-        var baseSize = (int)Math.Ceiling(orderQty * (double)splitRule.Percent / 100d);
-        baseSize = Math.Max(baseSize, splitRule.MinBatchSize);
+        // Maksymalny rozmiar batcha = Percent * MaxQty (lub MaxQty z reguły, lub orderQty jako fallback)
+        var referenceQty = splitRule.MaxQty ?? orderQty;
+        var maxBatchSize = (int)Math.Ceiling(referenceQty * (double)splitRule.Percent);
+        
+        // MaxBatchSize nie może być mniejszy niż MinBatchSize
+        maxBatchSize = Math.Max(maxBatchSize, splitRule.MinBatchSize);
 
-        if (baseSize <= 0)
+        if (maxBatchSize <= 0)
         {
             throw new InvalidOperationException("Wyliczony rozmiar batcha jest nieprawidłowy.");
+        }
+
+        // Walidacja: MinBatchSize nie może być większy niż MaxBatchSize
+        if (splitRule.MinBatchSize > maxBatchSize)
+        {
+            throw new InvalidOperationException("MinBatchSize nie może być większy niż MaxBatchSize.");
         }
 
         var batches = new List<Batch>();
         var remaining = orderQty;
         var batchNo = 1;
 
-        while (remaining > 0)
-        {
-            var take = Math.Min(baseSize, remaining);
-            if (take < splitRule.MinBatchSize && batches.Count > 0)
-            {
-                // Jeśli ostatni batch byłby za mały, dokładamy go do poprzedniego.
-                batches[^1].Quantity += take;
-                remaining = 0;
-                break;
-            }
+        // Oblicz liczbę pełnych batchy
+        var fullBatches = remaining / maxBatchSize;
+        var lastBatchQty = remaining % maxBatchSize;
 
+        // Tworzenie pełnych batchy
+        for (int i = 0; i < fullBatches; i++)
+        {
             batches.Add(new Batch
             {
                 Project = project,
                 BatchNo = batchNo++,
-                Quantity = take,
+                Quantity = maxBatchSize,
                 Status = BatchStatus.New,
                 Stage = ProductionStage.Design,
                 CreatedAt = now,
                 UpdatedAt = now
             });
 
-            remaining -= take;
-
-            if (splitRule.MaxBatchesPerProject is not null && batches.Count > splitRule.MaxBatchesPerProject.Value)
+            if (splitRule.MaxBatchesPerProject is not null && batches.Count >= splitRule.MaxBatchesPerProject.Value)
             {
-                throw new InvalidOperationException("Liczba batchy przekroczyłaby limit MaxBatchesPerProject.");
+                // Jeśli osiągnięto limit, resztę dodajemy do ostatniego batcha
+                var totalInBatches = batches.Sum(b => b.Quantity);
+                if (totalInBatches < orderQty)
+                {
+                    batches[^1].Quantity += (orderQty - totalInBatches);
+                }
+                break;
             }
         }
 
+        // Obsługa ostatniego batcha (reszty)
+        if (lastBatchQty > 0 && (splitRule.MaxBatchesPerProject is null || batches.Count < splitRule.MaxBatchesPerProject.Value))
+        {
+            if (lastBatchQty < splitRule.MinBatchSize && batches.Count > 0)
+            {
+                // Jeśli reszta jest mniejsza niż MinBatchSize, dokładamy do poprzedniego batcha
+                batches[^1].Quantity += lastBatchQty;
+            }
+            else
+            {
+                // Reszta jest wystarczająco duża, tworzę nowy batch
+                batches.Add(new Batch
+                {
+                    Project = project,
+                    BatchNo = batchNo++,
+                    Quantity = lastBatchQty,
+                    Status = BatchStatus.New,
+                    Stage = ProductionStage.Design,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+        }
+
+        // Walidacje końcowe
         if (batches.Sum(b => b.Quantity) != orderQty)
         {
             throw new InvalidOperationException("Suma batchy nie zgadza się z ilością zlecenia.");
@@ -421,6 +461,11 @@ public sealed class OrderService(AppDbContext db, ICurrentUser currentUser) : IO
         if (batches.Any(b => b.Quantity < splitRule.MinBatchSize))
         {
             throw new InvalidOperationException("Co najmniej jeden batch ma ilość poniżej MinBatchSize.");
+        }
+
+        if (splitRule.MaxBatchesPerProject is not null && batches.Count > splitRule.MaxBatchesPerProject.Value)
+        {
+            throw new InvalidOperationException("Liczba batchy przekroczyłaby limit MaxBatchesPerProject.");
         }
 
         return batches;

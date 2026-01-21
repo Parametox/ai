@@ -9,3 +9,12 @@ public readonly record struct Result<T>(T? Value, AppError? Error)
     public static Result<T> Fail(AppError error) => new(default, error);
 }
 
+public readonly record struct Result(AppError? Error)
+{
+    public bool IsSuccess => Error is null;
+    public bool IsFailure => Error is not null;
+
+    public static Result Ok() => new(null);
+    public static Result Fail(AppError error) => new(error);
+}
+

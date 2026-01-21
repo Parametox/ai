@@ -2,12 +2,15 @@ using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using KanbanLite.Contracts;
 using KanbanLite.Application.Services;
+using KanbanLite.Web.Services;
 using System.ComponentModel.DataAnnotations;
 
 namespace KanbanLite.Web.Pages.Manager;
 
 public partial class CreateOrder
 {
+    [Inject] private ISessionService SessionService { get; set; } = null!;
+    
     private CreateOrderFormModel formModel = new();
     private DateTime? selectedDueDate = DateTime.Now.AddDays(7);
     private DateTime minDueDate = DateTime.Now.AddDays(7);
@@ -17,6 +20,12 @@ public partial class CreateOrder
 
     protected override async Task OnInitializedAsync()
     {
+        if (!SessionService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+            return;
+        }
+        
         try
         {
             var result = await ProductFormatService.GetActiveLookupAsync();

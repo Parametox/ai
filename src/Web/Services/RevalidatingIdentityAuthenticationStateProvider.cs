@@ -1,30 +1,42 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
-using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 
 namespace KanbanLite.Web.Services;
 
 /// <summary>
-/// Authentication State Provider dla Blazor Server używający HttpContext.
+/// Authentication State Provider dla Blazor Server używający SessionService.
 /// </summary>
 public sealed class RevalidatingIdentityAuthenticationStateProvider<TUser>
     : ServerAuthenticationStateProvider
     where TUser : class
 {
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ISessionService _sessionService;
 
-    public RevalidatingIdentityAuthenticationStateProvider(IHttpContextAccessor httpContextAccessor)
+    public RevalidatingIdentityAuthenticationStateProvider(ISessionService sessionService)
     {
-        _httpContextAccessor = httpContextAccessor;
+        _sessionService = sessionService;
     }
 
     public override Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext?.User is not null)
+        if (_sessionService.IsAuthenticated)
         {
-            return Task.FromResult(new AuthenticationState(httpContext.User));
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, _sessionService.UserId!),
+                new Claim(ClaimTypes.Name, _sessionService.Username!)
+            };
+
+            // Dodaj role
+            foreach (var role in _sessionService.Roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var identity = new ClaimsIdentity(claims, "SessionAuth");
+            var principal = new ClaimsPrincipal(identity);
+            return Task.FromResult(new AuthenticationState(principal));
         }
 
         return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));

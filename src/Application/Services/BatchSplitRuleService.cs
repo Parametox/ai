@@ -8,7 +8,7 @@ using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentUser) : IBatchSplitRuleService
+public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IBatchSplitRuleService
 {
     public async Task<Result<IReadOnlyList<BatchSplitRuleDto>>> GetAsync(BatchSplitRuleQuery query, CancellationToken ct = default)
     {
@@ -29,6 +29,8 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var q = db.BatchSplitRules.AsNoTracking();
             if (query.IsActive is not null)
             {
@@ -88,17 +90,19 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
             return Result<BatchSplitRuleDto>.Fail(validation);
         }
 
-        if (request.IsActive)
-        {
-            var overlapError = await ValidateNoOverlapAsync(excludeId: null, request.MinQty, request.MaxQty, ct);
-            if (overlapError is not null)
-            {
-                return Result<BatchSplitRuleDto>.Fail(overlapError);
-            }
-        }
-
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
+            if (request.IsActive)
+            {
+                var overlapError = await ValidateNoOverlapAsync(db, excludeId: null, request.MinQty, request.MaxQty, ct);
+                if (overlapError is not null)
+                {
+                    return Result<BatchSplitRuleDto>.Fail(overlapError);
+                }
+            }
+
             var now = DateTimeOffset.UtcNow;
             var entity = new BatchSplitRule
             {
@@ -157,6 +161,8 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var entity = await db.BatchSplitRules.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {
@@ -165,7 +171,7 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
 
             if (request.IsActive)
             {
-                var overlapError = await ValidateNoOverlapAsync(excludeId: id, request.MinQty, request.MaxQty, ct);
+                var overlapError = await ValidateNoOverlapAsync(db, excludeId: id, request.MinQty, request.MaxQty, ct);
                 if (overlapError is not null)
                 {
                     return Result<BatchSplitRuleDto>.Fail(overlapError);
@@ -209,6 +215,8 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var entity = await db.BatchSplitRules.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {
@@ -217,7 +225,7 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
 
             if (isActive && !entity.IsActive)
             {
-                var overlapError = await ValidateNoOverlapAsync(excludeId: id, entity.MinQty, entity.MaxQty, ct);
+                var overlapError = await ValidateNoOverlapAsync(db, excludeId: id, entity.MinQty, entity.MaxQty, ct);
                 if (overlapError is not null)
                 {
                     return Result<BatchSplitRuleDto>.Fail(overlapError);
@@ -277,7 +285,7 @@ public sealed class BatchSplitRuleService(AppDbContext db, ICurrentUser currentU
         return errors.Count > 0 ? AppError.ValidationFailed("Nieprawidłowe dane wejściowe.", errors) : null;
     }
 
-    private async Task<AppError?> ValidateNoOverlapAsync(long? excludeId, int minQty, int? maxQty, CancellationToken ct)
+    private static async Task<AppError?> ValidateNoOverlapAsync(AppDbContext db, long? excludeId, int minQty, int? maxQty, CancellationToken ct)
     {
         var candidates = db.BatchSplitRules.AsNoTracking().Where(x => x.IsActive);
         if (excludeId is not null)

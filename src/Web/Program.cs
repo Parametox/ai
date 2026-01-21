@@ -28,11 +28,14 @@ builder.Services.AddControllers();
 // MudBlazor
 builder.Services.AddMudServices();
 
-// DataAccess - AppDbContext
+// DataAccess - AppDbContext z DbContextFactory dla Blazor Server
 var connectionString = builder.Configuration.GetConnectionString("KanbanConnectionString") ?? Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
     ?? throw new InvalidOperationException("Connection string 'KanbanConnectionString' not found.");
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+
+// Używamy DbContextFactory dla Blazor Server - rozwiązuje problem disposed context
+// AddDbContextFactory automatycznie rejestruje też AppDbContext jako scoped dla Identity
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
+    options.UseNpgsql(connectionString), ServiceLifetime.Scoped);
 
 // Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -71,18 +74,18 @@ builder.Services.AddAuthorization();
 // Blazor Server Authentication State Provider
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<ApplicationUser>>();
 
+// Session Service - Singleton dla zarządzania sesją użytkownika
+builder.Services.AddSingleton<ISessionService, SessionService>();
+
 // Application layer
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentUser, ClaimsPrincipalCurrentUser>();
+// ICurrentUser oparty na SessionService zamiast ClaimsPrincipal
+builder.Services.AddScoped<ICurrentUser, SessionCurrentUser>();
 builder.Services.AddKanbanLiteApplication();
 
-// Auth Service - Typed HttpClient
-builder.Services.AddHttpClient<IAuthService, AuthService>(client =>
-{
-    // Adres powinien być pobierany z konfiguracji, z fallbackiem na localhost
-    var baseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5145";
-    client.BaseAddress = new Uri(baseUrl);
-});
+// Auth Service - używa UserManager + SessionService
+builder.Services.AddScoped<IAuthService, AuthService>();
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 var app = builder.Build();

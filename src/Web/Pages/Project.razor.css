@@ -1,0 +1,91 @@
+/* Strona projektu - style */
+
+.project-header {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+}
+
+.project-status-card {
+    border-left: 4px solid var(--mud-palette-primary);
+}
+
+.project-batch-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.project-batch-chip {
+    text-transform: none;
+    font-weight: 500;
+}
+
+.project-navigation {
+    position: sticky;
+    bottom: 1rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsywne kolumny */
+@media (max-width: 768px) {
+    .project-details-grid {
+        flex-direction: column;
+    }
+    
+    .project-batch-table .mud-table-cell {
+        min-width: 120px;
+    }
+}
+
+/* Animacje załadowania */
+.project-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+}
+
+.project-error {
+    text-align: center;
+    padding: 2rem;
+}
+
+/* Status i etapy */
+.status-new {
+    background-color: #3b82f6;
+}
+
+.status-inprogress {
+    background-color: #f59e0b;
+}
+
+.status-done {
+    background-color: #10b981;
+}
+
+.stage-design {
+    background-color: #8b5cf6;
+}
+
+.stage-print {
+    background-color: #6366f1;
+}
+
+.stage-cut {
+    background-color: #f59e0b;
+}
+
+.stage-pack {
+    background-color: #3b82f6;
+}
+
+.stage-ship {
+    background-color: #10b981;
+}

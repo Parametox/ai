@@ -8,7 +8,7 @@ using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class DashboardService(AppDbContext db, ICurrentUser currentUser) : IDashboardService
+public sealed class DashboardService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IDashboardService
 {
     public async Task<Result<DashboardDto>> GetAsync(CancellationToken ct = default)
     {
@@ -20,6 +20,8 @@ public sealed class DashboardService(AppDbContext db, ICurrentUser currentUser) 
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             // Dashboard operacyjny: liczymy na projektach aktywnych (is_completed=false), żeby nie zawyżać metryk.
             var activeProjectIds = db.Projects.AsNoTracking().Where(p => !p.IsCompleted).Select(p => p.Id);
 

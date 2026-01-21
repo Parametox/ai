@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IBatchService
+public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IBatchService
 {
     private static readonly string[] AllowedRoles = ["Manager", "Operator"];
 
@@ -41,6 +41,8 @@ public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IB
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             // Projekcja join: batches + projects + orders (bez N+1).
             var baseQuery =
                 from b in db.Batches.AsNoTracking()
@@ -140,6 +142,8 @@ public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IB
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var batch = await db.Batches.SingleOrDefaultAsync(x => x.Id == batchId, ct);
             if (batch is null)
             {
@@ -174,7 +178,7 @@ public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IB
             var now = DateTimeOffset.UtcNow;
 
             Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
-            if (SupportsTransactions())
+            if (SupportsTransactions(db))
             {
                 // InMemory provider nie wspiera transakcji; w runtime używamy Npgsql, więc transakcja zadziała.
                 tx = await db.Database.BeginTransactionAsync(ct);
@@ -262,6 +266,8 @@ public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IB
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var batch = await db.Batches.SingleOrDefaultAsync(x => x.Id == batchId, ct);
             if (batch is null)
             {
@@ -292,7 +298,7 @@ public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IB
             var now = DateTimeOffset.UtcNow;
 
             Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
-            if (SupportsTransactions())
+            if (SupportsTransactions(db))
             {
                 tx = await db.Database.BeginTransactionAsync(ct);
             }
@@ -362,6 +368,8 @@ public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IB
 
         try
         {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            
             var count = await db.Batches.AsNoTracking().CountAsync(x => x.Status == BatchStatus.InProgress, ct);
             return Result<int>.Ok(count);
         }
@@ -393,7 +401,7 @@ public sealed class BatchService(AppDbContext db, ICurrentUser currentUser) : IB
         return AppError.Forbidden("Brak uprawnień do operacji na batchach.");
     }
 
-    private bool SupportsTransactions()
+    private static bool SupportsTransactions(AppDbContext db)
         => !string.Equals(
             db.Database.ProviderName,
             "Microsoft.EntityFrameworkCore.InMemory",

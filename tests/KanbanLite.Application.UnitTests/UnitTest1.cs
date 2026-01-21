@@ -22,7 +22,8 @@ public sealed class BatchServiceTests
         currentUser.UserId.Returns("u1");
         currentUser.IsInRole(Arg.Any<string>()).Returns(false);
 
-        var sut = new BatchService(db, currentUser);
+        var dbFactory = CreateDbFactory(db);
+        var sut = new BatchService(dbFactory, currentUser);
 
         var result = await sut.UpdateStatusAsync(batchId: 1, new UpdateBatchStatusRequest(BatchStatus.InProgress));
 
@@ -40,7 +41,8 @@ public sealed class BatchServiceTests
         currentUser.UserId.Returns("u1");
         currentUser.IsInRole("Operator").Returns(true);
 
-        var sut = new BatchService(db, currentUser);
+        var dbFactory = CreateDbFactory(db);
+        var sut = new BatchService(dbFactory, currentUser);
 
         var result = await sut.UpdateStatusAsync(batchId: 1, new UpdateBatchStatusRequest(BatchStatus.Done));
 
@@ -129,7 +131,8 @@ public sealed class BatchServiceTests
         currentUser.UserId.Returns("u1");
         currentUser.IsInRole("Operator").Returns(true);
 
-        var sut = new BatchService(db, currentUser);
+        var dbFactory = CreateDbFactory(db);
+        var sut = new BatchService(dbFactory, currentUser);
 
         var result = await sut.UpdateStageAsync(batchId: 1, new UpdateBatchStageRequest(ProductionStage.Design));
 
@@ -147,7 +150,8 @@ public sealed class BatchServiceTests
         currentUser.UserId.Returns("u1");
         currentUser.IsInRole("Operator").Returns(true);
 
-        var sut = new BatchService(db, currentUser);
+        var dbFactory = CreateDbFactory(db);
+        var sut = new BatchService(dbFactory, currentUser);
 
         var result = await sut.UpdateStageAsync(batchId: 1, new UpdateBatchStageRequest(ProductionStage.Pack));
 
@@ -166,6 +170,13 @@ public sealed class BatchServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
             .Options;
         return new AppDbContext(options);
+    }
+
+    private static IDbContextFactory<AppDbContext> CreateDbFactory(AppDbContext db)
+    {
+        var factory = Substitute.For<IDbContextFactory<AppDbContext>>();
+        factory.CreateDbContextAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(db));
+        return factory;
     }
 
     private static async Task SeedMinimalProjectWithBatch(AppDbContext db, BatchStatus status, ProductionStage stage)
@@ -496,7 +507,10 @@ public sealed class OrderServiceTests
         result.Value!.Batches.Sum(b => b.Quantity).Should().Be(200);
         result.Value!.Batches.Should().OnlyContain(b => b.Status == BatchStatus.New && b.Stage == ProductionStage.Design);
 
-        // split rule: Percent=30% => ceil(200*0.30)=60 => 60,60,60,20
+        // Nowy algorytm: reguła ma MinQty=1, MaxQty=null, więc MaxQty = orderQty = 200
+        // MaxBatchSize = 30% z 200 = 60
+        // 200 / 60 = 3 całkowite + 20 reszty
+        // 3 batche po 60 + 1 batch z 20 (20 >= MinBatchSize=1)
         result.Value!.Batches.Select(b => b.Quantity).Should().Equal([60, 60, 60, 20]);
     }
 
@@ -536,6 +550,141 @@ public sealed class OrderServiceTests
         result.Value!.OrderNumber.Should().Be("ORD-MATCH");
         result.Value!.ProductFormat.Name.Should().Be("A6");
         result.Value!.Project.ProjectNumber.Should().Be("PRJ-MATCH");
+    }
+
+    [Fact]
+    public async Task CreateAsync_should_split_91_items_with_minBatchSize_1()
+    {
+        // Przykład z opisu: zakres 1-100, Percent=10%, MinBatchSize=1
+        // MaxBatchSize = 10% z 100 = 10
+        // 91 / 10 = 9 pełnych + 1 reszta
+        // Oczekiwane: 9 batchy po 10 + 1 batch z 1
+        await using var db = CreateDb();
+        
+        var pf = new ProductFormat { Id = 1, Name = "A6", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+        db.ProductFormats.Add(pf);
+
+        db.BatchSplitRules.Add(new BatchSplitRule
+        {
+            Id = 1,
+            MinQty = 1,
+            MaxQty = 100,
+            Percent = 0.10m,
+            MinBatchSize = 1,
+            MaxBatchesPerProject = null,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns("u1");
+        currentUser.IsInRole("Manager").Returns(true);
+
+        var sut = new OrderService(db, currentUser);
+
+        var result = await sut.CreateAsync(new CreateOrderRequest(
+            OrderNumber: "ORD-2026-0091",
+            Quantity: 91,
+            ProductFormatId: 1,
+            DueDate: DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(10))
+        ));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Batches.Sum(b => b.Quantity).Should().Be(91);
+        result.Value!.Batches.Select(b => b.Quantity).Should().Equal([10, 10, 10, 10, 10, 10, 10, 10, 10, 1]);
+        result.Value!.Batches.Should().OnlyContain(b => b.Quantity >= 1);
+    }
+
+    [Fact]
+    public async Task CreateAsync_should_split_91_items_with_minBatchSize_5()
+    {
+        // Przykład z opisu: zakres 1-100, Percent=10%, MinBatchSize=5
+        // MaxBatchSize = 10% z 100 = 10
+        // 91 / 10 = 9 pełnych + 1 reszta
+        // 1 < MinBatchSize=5, więc dokładamy do poprzedniego
+        // Oczekiwane: 8 batchy po 10 + 1 batch z 11
+        await using var db = CreateDb();
+        
+        var pf = new ProductFormat { Id = 1, Name = "A6", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+        db.ProductFormats.Add(pf);
+
+        db.BatchSplitRules.Add(new BatchSplitRule
+        {
+            Id = 1,
+            MinQty = 1,
+            MaxQty = 100,
+            Percent = 0.10m,
+            MinBatchSize = 5,
+            MaxBatchesPerProject = null,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns("u1");
+        currentUser.IsInRole("Manager").Returns(true);
+
+        var sut = new OrderService(db, currentUser);
+
+        var result = await sut.CreateAsync(new CreateOrderRequest(
+            OrderNumber: "ORD-2026-0091",
+            Quantity: 91,
+            ProductFormatId: 1,
+            DueDate: DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(10))
+        ));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Batches.Sum(b => b.Quantity).Should().Be(91);
+        result.Value!.Batches.Select(b => b.Quantity).Should().Equal([10, 10, 10, 10, 10, 10, 10, 10, 11]);
+        result.Value!.Batches.Should().OnlyContain(b => b.Quantity >= 5);
+    }
+
+    [Fact]
+    public async Task CreateAsync_should_handle_quantity_within_rule_range_with_maxQty_null()
+    {
+        // Przypadek gdzie MaxQty=null, więc używamy orderQty jako referencji
+        await using var db = CreateDb();
+        
+        var pf = new ProductFormat { Id = 1, Name = "A6", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+        db.ProductFormats.Add(pf);
+
+        db.BatchSplitRules.Add(new BatchSplitRule
+        {
+            Id = 1,
+            MinQty = 1,
+            MaxQty = null, // Brak górnego limitu
+            Percent = 0.20m, // 20%
+            MinBatchSize = 10,
+            MaxBatchesPerProject = null,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns("u1");
+        currentUser.IsInRole("Manager").Returns(true);
+
+        var sut = new OrderService(db, currentUser);
+
+        var result = await sut.CreateAsync(new CreateOrderRequest(
+            OrderNumber: "ORD-2026-0150",
+            Quantity: 150,
+            ProductFormatId: 1,
+            DueDate: DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(10))
+        ));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Batches.Sum(b => b.Quantity).Should().Be(150);
+        // MaxBatchSize = 20% z 150 = 30
+        // 150 / 30 = 5 batchy po 30
+        result.Value!.Batches.Select(b => b.Quantity).Should().Equal([30, 30, 30, 30, 30]);
+        result.Value!.Batches.Should().OnlyContain(b => b.Quantity >= 10);
     }
 
     private static AppDbContext CreateDb()

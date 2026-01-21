@@ -19,17 +19,12 @@
                 </MudNavLink>
             }
             
-            <div class="mt-4">
-                <form action="api/auth/logout" method="post" style="display: inline;">
-                    <MudButton ButtonType="ButtonType.Submit"
-                               Variant="Variant.Text"
-                               Color="Color.Error"
-                               FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.Logout">
-                        Wyloguj
-                    </MudButton>
-                </form>
-            </div>
+            <MudNavLink OnClick="HandleLogout"
+                        Icon="@Icons.Material.Filled.Logout"
+                        IconColor="Color.Error"
+                        Style="color: #E82700;">
+                Wyloguj
+            </MudNavLink>
         </MudNavMenu>
     </Authorized>
 </AuthorizeView>

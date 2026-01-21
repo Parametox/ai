@@ -1,0 +1,166 @@
+@page "/project/{id:long}"
+@layout MainLayout
+@using MudBlazor
+@using KanbanLite.Contracts
+@using DataAccess.Enums
+
+<PageTitle>Projekt @(_project?.ProjectNumber ?? "Ładowanie...")</PageTitle>
+
+@if (_loading)
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-2">Ładowanie projektu...</MudText>
+    </MudContainer>
+}
+else if (_error is not null)
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+        <MudAlert Severity="Severity.Error" Class="mb-4">
+            @_error
+        </MudAlert>
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Href="/kanban">
+            Wróć do Kanban
+        </MudButton>
+    </MudContainer>
+}
+else if (_project is not null)
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+        <!-- Nagłówek projektu -->
+        <MudCard Class="mb-4">
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h4" Class="mb-2">
+                            Projekt @_project.ProjectNumber
+                            @if (_project.IsCompleted)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Class="ml-2">Zakończony</MudChip>
+                            }
+                        </MudText>
+                    </MudItem>
+                    
+                    <!-- Szczegóły zlecenia -->
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.h6" Class="mb-2">Szczegóły zlecenia</MudText>
+                        <MudStack Spacing="1">
+                            <MudText><strong>Numer zlecenia:</strong> @_project.Order.OrderNumber</MudText>
+                            <MudText><strong>Ilość:</strong> @_project.Order.Quantity szt.</MudText>
+                            <MudText><strong>Termin:</strong> @_project.Order.DueDate.ToString("dd/MM/yyyy")</MudText>
+                            <MudText><strong>Format produktu:</strong> @_project.Order.ProductFormatName</MudText>
+                        </MudStack>
+                    </MudItem>
+                    
+                    <!-- Status wysyłki -->
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.h6" Class="mb-2">Status wysyłki</MudText>
+                        @if (_project.Completion.CanShip)
+                        {
+                            <MudAlert Severity="Severity.Success" Class="mb-2">
+                                Projekt gotowy do wysyłki
+                            </MudAlert>
+                            @if (_isManager && !_project.IsCompleted)
+                            {
+                                <MudButton Variant="Variant.Filled" 
+                                           Color="Color.Success" 
+                                           StartIcon="@Icons.Material.Filled.Send"
+                                           OnClick="OnShipProject"
+                                           Disabled="_shipping">
+                                    @if (_shipping)
+                                    {
+                                        <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                                        <text>Wysyłanie...</text>
+                                    }
+                                    else
+                                    {
+                                        <text>Wyślij do klienta</text>
+                                    }
+                                </MudButton>
+                            }
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Warning" Class="mb-2">
+                                Projekt nie jest gotowy do wysyłki
+                                @if (!string.IsNullOrWhiteSpace(_project.Completion.Reason))
+                                {
+                                    <br />
+                                    <strong>Powód:</strong> @_project.Completion.Reason
+                                }
+                            </MudAlert>
+                        }
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        <!-- Lista batchy -->
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6" Class="mb-3">Batche projektu (@_project.Batches.Count)</MudText>
+                
+                @if (_project.Batches.Any())
+                {
+                    <MudTable Items="_project.Batches" 
+                              Hover="true" 
+                              Striped="true" 
+                              Dense="true" 
+                              Bordered="true">
+                        <HeaderContent>
+                            <MudTh>Numer batcha</MudTh>
+                            <MudTh>Ilość</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Etap</MudTh>
+                            <MudTh>Postęp</MudTh>
+                            <MudTh>Ostatnia aktualizacja</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Numer batcha">@context.BatchNo</MudTd>
+                            <MudTd DataLabel="Ilość">@context.Quantity szt.</MudTd>
+                            <MudTd DataLabel="Status">
+                                <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">
+                                    @context.Status.ToString()
+                                </MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Etap">
+                                <MudChip T="string" Color="@GetStageColor(context.Stage)" Size="Size.Small">
+                                    @context.Stage.ToString() (@((int)context.Stage))
+                                </MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Postęp">
+                                <MudProgressLinear Value="@context.ProgressPercent" Color="Color.Primary" />
+                                <MudText Typo="Typo.caption">@context.ProgressPercent%</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Ostatnia aktualizacja">
+                                @context.UpdatedAt.ToString("dd/MM/yyyy HH:mm")
+                            </MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText>Brak batchy w tym projekcie</MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info">
+                        Ten projekt nie ma jeszcze żadnych batchy.
+                    </MudAlert>
+                }
+            </MudCardContent>
+        </MudCard>
+
+        <!-- Nawigacja -->
+        <MudStack Direction="Row" Spacing="2" Class="mt-4">
+            <MudButton Variant="Variant.Outlined" 
+                       Color="Color.Default" 
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       Href="/kanban">
+                Wróć do Kanban
+            </MudButton>
+        </MudStack>
+    </MudContainer>
+}
