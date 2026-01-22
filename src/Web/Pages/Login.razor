@@ -18,13 +18,14 @@
             </div>
         }
 
-        <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin" class="login-form">
+        <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin" class="login-form" data-testid="login-form">
             <div class="form-group">
                 <label for="username" class="form-label">Nazwa użytkownika</label>
                 <InputText @bind-Value="_loginModel.Username"
                            id="username" 
                            class="form-input" 
-                           autocomplete="username" />
+                           autocomplete="username"
+                           data-testid="login-username" />
             </div>
             
             <div class="form-group">
@@ -33,10 +34,11 @@
                            @bind-Value="_loginModel.Password"
                            id="password" 
                            class="form-input" 
-                           autocomplete="current-password" />
+                           autocomplete="current-password"
+                           data-testid="login-password" />
             </div>
             
-            <button type="submit" class="btn btn-primary btn-full" disabled="@_isLoading">
+            <button type="submit" class="btn btn-primary btn-full" disabled="@_isLoading" data-testid="login-submit">
                 <span>@(_isLoading ? "Logowanie..." : "Zaloguj")</span>
             </button>
         </EditForm>

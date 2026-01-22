@@ -60,7 +60,7 @@ else if (_project is not null)
                         <MudText Typo="Typo.h6" Class="mb-2">Status wysyłki</MudText>
                         @if (_project.Completion.CanShip)
                         {
-                            <MudAlert Severity="Severity.Success" Class="mb-2">
+                            <MudAlert Severity="Severity.Success" Class="mb-2" data-testid="project-ready-to-ship">
                                 Projekt gotowy do wysyłki
                             </MudAlert>
                             @if (_isManager && !_project.IsCompleted)
@@ -69,7 +69,8 @@ else if (_project is not null)
                                            Color="Color.Success" 
                                            StartIcon="@Icons.Material.Filled.Send"
                                            OnClick="OnShipProject"
-                                           Disabled="_shipping">
+                                           Disabled="_shipping"
+                                           data-testid="ship-project-button">
                                     @if (_shipping)
                                     {
                                         <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
@@ -84,7 +85,7 @@ else if (_project is not null)
                         }
                         else
                         {
-                            <MudAlert Severity="Severity.Warning" Class="mb-2">
+                            <MudAlert Severity="Severity.Warning" Class="mb-2" data-testid="project-not-ready">
                                 Projekt nie jest gotowy do wysyłki
                                 @if (!string.IsNullOrWhiteSpace(_project.Completion.Reason))
                                 {

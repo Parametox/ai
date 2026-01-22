@@ -12,11 +12,12 @@
           CurrentPage="Query.Page"
           TotalItems="@((int)(Batches?.Total ?? 0))"
           OnPageChanged="OnPageChanged"
-          OnPageSizeChanged="OnPageSizeChanged">
+          OnPageSizeChanged="OnPageSizeChanged"
+          data-testid="kanban-table">
     <ToolBarContent>
-        <MudText Typo="Typo.h6">Lista batchy</MudText>
+        <MudText Typo="Typo.h6" data-testid="kanban-table-title">Lista batchy</MudText>
         <MudSpacer />
-        <MudText>@(Batches?.Total ?? 0) batchy</MudText>
+        <MudText data-testid="kanban-batch-count">@(Batches?.Total ?? 0) batchy</MudText>
     </ToolBarContent>
     <HeaderContent>
         <MudTh>Numer zlecenia</MudTh>
@@ -28,23 +29,23 @@
         <MudTh>Ostrzeżenie</MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="Numer zlecenia">
-            <MudLink Href="@($"/project/{context.ProjectId}")" Typo="Typo.body1">
+        <MudTd DataLabel="Numer zlecenia" data-testid="@($"batch-order-{context.BatchId}")">
+            <MudLink Href="@($"/project/{context.ProjectId}")" Typo="Typo.body1" data-testid="@($"batch-order-link-{context.BatchId}")">
                 @context.OrderNumber
             </MudLink>
         </MudTd>
-        <MudTd DataLabel="Numer batcha">@context.BatchNo</MudTd>
+        <MudTd DataLabel="Numer batcha" data-testid="@($"batch-no-{context.BatchId}")">@context.BatchNo</MudTd>
         <MudTd DataLabel="Liczba sztuk">@context.Quantity</MudTd>
-        <MudTd DataLabel="Postęp">
+        <MudTd DataLabel="Postęp" data-testid="@($"batch-progress-{context.BatchId}")">
             <MudProgressLinear Value="@context.ProgressPercent" Color="Color.Primary" />
             <MudText Typo="Typo.caption">@context.ProgressPercent%</MudText>
         </MudTd>
-        <MudTd DataLabel="Status">
+        <MudTd DataLabel="Status" data-testid="@($"batch-status-{context.BatchId}")">
             <BatchStatusSelect BatchId="@context.BatchId"
                                CurrentStatus="@context.Status"
                                OnStatusChanged="OnStatusChanged" />
         </MudTd>
-        <MudTd DataLabel="Etap">
+        <MudTd DataLabel="Etap" data-testid="@($"batch-stage-{context.BatchId}")">
             <BatchStageSelect BatchId="@context.BatchId"
                              CurrentStage="@context.Stage"
                              OnStageChanged="OnStageChanged" />

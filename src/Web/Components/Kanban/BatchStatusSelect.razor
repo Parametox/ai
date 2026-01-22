@@ -8,7 +8,8 @@
            Variant="Variant.Outlined"
            T="BatchStatus"
            Disabled="@(Disabled || _saving)"
-           Dense="true">
+           Dense="true"
+           data-testid="@($"batch-status-select-{BatchId}")">
     <MudSelectItem Value="@BatchStatus.New" Disabled="@IsOptionDisabled(BatchStatus.New)">
         New
     </MudSelectItem>

@@ -3,18 +3,18 @@
 
 <AuthorizeView>
     <Authorized Context="authContext">
-        <MudNavMenu>
-            <MudNavLink Href="/kanban" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ViewKanban">
+        <MudNavMenu data-testid="nav-menu">
+            <MudNavLink Href="/kanban" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ViewKanban" data-testid="nav-kanban">
                 Kanban
             </MudNavLink>
             
             @if (authContext.User.IsInRole("Manager"))
             {
-                <MudNavLink Href="/manager/orders/create" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AddTask">
+                <MudNavLink Href="/manager/orders/create" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AddTask" data-testid="nav-create-order">
                     Dodaj zlecenie
                 </MudNavLink>
                 
-                <MudNavLink Href="/manager/dashboard" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard">
+                <MudNavLink Href="/manager/dashboard" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Dashboard" data-testid="nav-dashboard">
                     Panel Managera
                 </MudNavLink>
             }
@@ -22,7 +22,8 @@
             <MudNavLink OnClick="HandleLogout"
                         Icon="@Icons.Material.Filled.Logout"
                         IconColor="Color.Error"
-                        Style="color: #E82700;">
+                        Style="color: #E82700;"
+                        data-testid="nav-logout">
                 Wyloguj
             </MudNavLink>
         </MudNavMenu>

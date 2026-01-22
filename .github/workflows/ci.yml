@@ -1,0 +1,191 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  POSTGRES_DB: kanbanlite_test
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run Unit Tests
+        run: dotnet test tests/KanbanLite.Application.UnitTests --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=unit-tests.trx"
+
+      - name: Upload Unit Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: '**/TestResults/*.trx'
+          retention-days: 7
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration Release
+
+      - name: Apply database migrations
+        run: dotnet run --project src/DbMigrator --configuration Release
+        env:
+          ConnectionStrings__KanbanConnectionString: "Host=localhost;Port=5432;Database=${{ env.POSTGRES_DB }};Username=${{ env.POSTGRES_USER }};Password=${{ env.POSTGRES_PASSWORD }}"
+
+      - name: Seed test users
+        run: |
+          PGPASSWORD=${{ env.POSTGRES_PASSWORD }} psql -h localhost -U ${{ env.POSTGRES_USER }} -d ${{ env.POSTGRES_DB }} << 'EOF'
+          -- Seed Manager user
+          INSERT INTO "AspNetUsers" ("Id", "UserName", "NormalizedUserName", "Email", "NormalizedEmail", "EmailConfirmed", "PasswordHash", "SecurityStamp", "ConcurrencyStamp", "PhoneNumberConfirmed", "TwoFactorEnabled", "LockoutEnabled", "AccessFailedCount", "DisplayName")
+          VALUES 
+            ('manager-id-001', 'menago', 'MENAGO', 'menago@test.com', 'MENAGO@TEST.COM', true, 'AQAAAAIAAYagAAAAEMenago-hashed-password', 'stamp1', 'concurrency1', false, false, false, 0, 'Manager User'),
+            ('operator-id-001', 'operator', 'OPERATOR', 'operator@test.com', 'OPERATOR@TEST.COM', true, 'AQAAAAIAAYagAAAAEMoperator-hashed-password', 'stamp2', 'concurrency2', false, false, false, 0, 'Operator User')
+          ON CONFLICT DO NOTHING;
+          
+          -- Assign roles
+          INSERT INTO "AspNetUserRoles" ("UserId", "RoleId")
+          SELECT 'manager-id-001', "Id" FROM "AspNetRoles" WHERE "Name" = 'Manager'
+          ON CONFLICT DO NOTHING;
+          
+          INSERT INTO "AspNetUserRoles" ("UserId", "RoleId")
+          SELECT 'operator-id-001', "Id" FROM "AspNetRoles" WHERE "Name" = 'Operator'
+          ON CONFLICT DO NOTHING;
+          
+          -- Seed ProductFormat if not exists
+          INSERT INTO "ProductFormats" ("Id", "Name", "IsActive", "CreatedAt", "UpdatedAt")
+          VALUES (1, 'A5', true, NOW(), NOW())
+          ON CONFLICT DO NOTHING;
+          
+          -- Seed BatchSplitRule if not exists
+          INSERT INTO "BatchSplitRules" ("Id", "Name", "MaxBatchSize", "IsActive", "CreatedAt", "UpdatedAt")
+          VALUES (1, 'Default Rule', 100, true, NOW(), NOW())
+          ON CONFLICT DO NOTHING;
+          EOF
+
+      - name: Start application in background
+        run: |
+          dotnet run --project src/Web --configuration Release --urls "http://localhost:5145" &
+          echo $! > app.pid
+          sleep 15
+        env:
+          ConnectionStrings__KanbanConnectionString: "Host=localhost;Port=5432;Database=${{ env.POSTGRES_DB }};Username=${{ env.POSTGRES_USER }};Password=${{ env.POSTGRES_PASSWORD }}"
+          ASPNETCORE_ENVIRONMENT: Development
+
+      - name: Wait for application to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:5145/login > /dev/null; then
+              echo "Application is ready!"
+              break
+            fi
+            echo "Waiting for application... ($i/30)"
+            sleep 2
+          done
+
+      - name: Build E2E Tests project
+        run: dotnet build tests/KanbanLite.E2E.Tests --configuration Release
+
+      - name: Run E2E Tests
+        run: dotnet test tests/KanbanLite.E2E.Tests --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=e2e-tests.trx"
+        env:
+          E2E_BASE_URL: "http://localhost:5145"
+          E2E_MANAGER_USERNAME: "menago"
+          E2E_MANAGER_PASSWORD: "menago"
+          E2E_OPERATOR_USERNAME: "operator"
+          E2E_OPERATOR_PASSWORD: "operator"
+          PLAYWRIGHT_HEADLESS: "true"
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ -f app.pid ]; then
+            kill $(cat app.pid) || true
+          fi
+
+      - name: Upload E2E Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: '**/TestResults/*.trx'
+          retention-days: 7
+
+      - name: Upload Playwright Traces
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: '**/playwright-traces/'
+          retention-days: 7

@@ -38,6 +38,12 @@ TestResults/
 *.coverage
 *.trx
 
+## --- Playwright ---
+playwright-report/
+playwright-traces/
+playwright/.cache/
+test-results/
+
 ## --- Systemowe i tymczasowe ---
 .DS_Store
 Thumbs.db

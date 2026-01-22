@@ -7,7 +7,8 @@
            Variant="Variant.Outlined"
            T="ProductionStage"
            Disabled="@(Disabled || _saving)"
-           Dense="true">
+           Dense="true"
+           data-testid="@($"batch-stage-select-{BatchId}")">
     <MudSelectItem Value="@ProductionStage.Design" Disabled="@IsOptionDisabled(ProductionStage.Design)">
         @GetStageName(ProductionStage.Design)
     </MudSelectItem>

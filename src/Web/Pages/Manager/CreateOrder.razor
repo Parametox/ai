@@ -16,7 +16,7 @@
             Dodaj nowe zlecenie
         </MudText>
 
-        <EditForm Model="@formModel" OnValidSubmit="OnValidSubmit">
+        <EditForm Model="@formModel" OnValidSubmit="OnValidSubmit" data-testid="create-order-form">
             <DataAnnotationsValidator />
             <MudGrid>
                 <MudItem xs="12" md="6">
@@ -28,7 +28,8 @@
                                   Required="true"
                                   RequiredError="Numer zlecenia jest wymagany"
                                   Variant="Variant.Outlined"
-                                  Class="create-order-input" />
+                                  Class="create-order-input"
+                                  data-testid="order-number-input" />
                 </MudItem>
 
                 <MudItem xs="12" md="6">
@@ -42,7 +43,8 @@
                                      RequiredError="Ilość jest wymagana"
                                      Variant="Variant.Outlined"
                                      HideSpinButtons="false"
-                                     Class="create-order-input" />
+                                     Class="create-order-input"
+                                     data-testid="order-quantity-input" />
                 </MudItem>
 
                 <MudItem xs="12" md="6">
@@ -54,7 +56,8 @@
                                Required="true"
                                RequiredError="Format produktu jest wymagany"
                                Variant="Variant.Outlined"
-                               Class="create-order-input">
+                               Class="create-order-input"
+                               data-testid="order-format-select">
                         @foreach (var format in productFormats)
                         {
                             <MudSelectItem Value="@format.Id">@format.Name</MudSelectItem>
@@ -72,7 +75,8 @@
                                    RequiredError="Termin realizacji jest wymagany"
                                    Variant="Variant.Outlined"
                                    DateFormat="dd.MM.yyyy"
-                                   Class="create-order-input" />
+                                   Class="create-order-input"
+                                   data-testid="order-duedate-picker" />
                 </MudItem>
 
                 <MudItem xs="12" Class="pt-6">
@@ -82,7 +86,8 @@
                                Size="Size.Large"
                                StartIcon="@Icons.Material.Filled.Save"
                                Disabled="@isSubmitting"
-                               Class="mr-3">
+                               Class="mr-3"
+                               data-testid="order-submit-button">
                         @if (isSubmitting)
                         {
                             <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
