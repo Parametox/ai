@@ -28,6 +28,12 @@ builder.Services.AddControllers();
 // MudBlazor
 builder.Services.AddMudServices();
 
+// Supabase
+var supabaseUrl = builder.Configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase Url not found.");
+var supabaseKey = builder.Configuration["Supabase:Key"] ?? throw new InvalidOperationException("Supabase Key not found.");
+var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+builder.Services.AddScoped<Supabase.Client>(_ => new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions));
+
 // DataAccess - AppDbContext z DbContextFactory dla Blazor Server
 var connectionString = builder.Configuration.GetConnectionString("KanbanConnectionString") ?? Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
     ?? throw new InvalidOperationException("Connection string 'KanbanConnectionString' not found.");
@@ -96,6 +102,13 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
+}
+
+// Inicjalizacja Supabase
+using (var scope = app.Services.CreateScope())
+{
+    var supabase = scope.ServiceProvider.GetRequiredService<Supabase.Client>();
+    await supabase.InitializeAsync();
 }
 
 app.UseHttpsRedirection();

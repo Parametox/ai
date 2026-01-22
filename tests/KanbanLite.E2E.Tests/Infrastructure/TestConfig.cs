@@ -37,6 +37,9 @@ public static class TestConfig
             
         if (_settings.OperatorUser == null || string.IsNullOrWhiteSpace(_settings.OperatorUser.Username) || string.IsNullOrWhiteSpace(_settings.OperatorUser.Password))
             throw new InvalidOperationException("OperatorUser configuration is incomplete.");
+        
+        if (_settings.Supabase == null || string.IsNullOrWhiteSpace(_settings.Supabase.Url) || string.IsNullOrWhiteSpace(_settings.Supabase.Key))
+             throw new InvalidOperationException("Supabase configuration is incomplete.");
     }
 
     /// <summary>
@@ -46,6 +49,15 @@ public static class TestConfig
     
     public static bool Headless => _settings.Headless;
     public static int SlowMo => _settings.SlowMo;
+
+    /// <summary>
+    /// Konfiguracja Supabase
+    /// </summary>
+    public static class Supabase
+    {
+        public static string Url => _settings.Supabase!.Url!;
+        public static string Key => _settings.Supabase!.Key!;
+    }
 
     /// <summary>
     /// Dane logowania użytkownika Manager.
@@ -82,11 +94,18 @@ public static class TestConfig
         public int SlowMo { get; set; }
         public UserCredentials? ManagerUser { get; set; }
         public UserCredentials? OperatorUser { get; set; }
+        public SupabaseSettings? Supabase { get; set; }
     }
 
     public class UserCredentials
     {
         public string? Username { get; set; }
         public string? Password { get; set; }
+    }
+
+    public class SupabaseSettings 
+    {
+        public string? Url { get; set; }
+        public string? Key { get; set; }
     }
 }

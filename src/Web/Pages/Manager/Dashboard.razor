@@ -1,4 +1,6 @@
 @page "/manager/dashboard"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Manager")]
 @layout MainLayout
 @using KanbanLite.Contracts
 @using KanbanLite.Application.Services

@@ -79,6 +79,13 @@ dotnet test tests\KanbanLite.E2E.Tests --filter "FullName~FullWorkflow"
 
 ## 🔧 Konfiguracja GitHub Actions CI/CD
 
+### Architektura środowisk
+
+| Środowisko | Baza danych | Opis |
+|------------|-------------|------|
+| **Lokalne (Debug)** | PostgreSQL localhost:5432 | Użytkownik: `postgres`, Hasło: `postgres` |
+| **CI/CD (Release)** | Supabase Cloud | Wspólna baza dla testów CI |
+
 ### Krok 1: Utwórz repozytorium na GitHub
 
 1. Idź na https://github.com/new
@@ -86,7 +93,19 @@ dotnet test tests\KanbanLite.E2E.Tests --filter "FullName~FullWorkflow"
 3. Widoczność: **Private** (dla projektu zaliczeniowego)
 4. Nie inicjalizuj README (masz już swoje)
 
-### Krok 2: Połącz lokalne repo z GitHub
+### Krok 2: Skonfiguruj sekrety GitHub
+
+⚠️ **WAŻNE**: Pipeline CI/CD używa Supabase jako bazy danych!
+
+1. Idź do **Settings** → **Secrets and variables** → **Actions**
+2. Dodaj następujące sekrety:
+
+| Secret | Wartość |
+|--------|---------|
+| `SUPABASE_CONNECTION_STRING` | `Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=TWOJE_HASLO;Pooling=true;Trust Server Certificate=true;` |
+| `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_xxx` |
+
+### Krok 3: Połącz lokalne repo z GitHub
 
 ```powershell
 cd D:\ProjZaliczeniowyAI
@@ -109,20 +128,26 @@ git push -u origin main
 git push -u origin master
 ```
 
-### Krok 3: Sprawdź Actions
+### Krok 4: Sprawdź Actions
 
 1. Idź na GitHub → Twoje repo → zakładka **Actions**
 2. Pipeline powinien się automatycznie uruchomić
 3. Kliknij w workflow aby zobaczyć logi
 
-### Krok 4: Naprawa problemów z CI
+### Krok 5: Naprawa problemów z CI
 
-#### Problem: Brak użytkowników testowych w bazie CI
+#### Problem: Brak sekretów Supabase
 
-Workflow zawiera SQL seed, ale wymaga prawidłowego hasha haseł. 
-Alternatywnie możesz użyć migracji seedującej użytkowników.
+Jeśli widzisz błąd połączenia z bazą, upewnij się że dodałeś sekrety:
+- `SUPABASE_CONNECTION_STRING`
+- `SUPABASE_PUBLISHABLE_KEY`
 
-W pliku `.github/workflows/ci.yml` sekcja "Seed test users" może wymagać dostosowania do Twojego schematu Identity.
+#### Problem: Brak użytkowników testowych w Supabase
+
+Dane testowe są już w Supabase (przeniesione z lokalnej bazy). 
+Użytkownicy testowi:
+- **menago** / **menago** (Manager)
+- **operator** / **operator** (Operator)
 
 #### Problem: Aplikacja nie startuje
 

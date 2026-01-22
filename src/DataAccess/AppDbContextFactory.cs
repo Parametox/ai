@@ -12,7 +12,7 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
     {
         var connectionString =
             Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=kanbanlite;Username=kanbanlite;Password=kanbanlite";
+            ?? "Host=db.fntdzqdxfbddesaijpdr.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=ytkYBbGznj4NqWcfRvY6;Pooling=true;Trust Server Certificate=true;";
 
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         optionsBuilder.UseNpgsql(connectionString);

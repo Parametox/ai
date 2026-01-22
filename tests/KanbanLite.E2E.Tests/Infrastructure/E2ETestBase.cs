@@ -10,6 +10,7 @@ public abstract class E2ETestBase : IAsyncLifetime
     protected readonly PlaywrightFixture _fixture;
     protected IBrowserContext Context { get; private set; } = null!;
     protected IPage Page { get; private set; } = null!;
+    protected Supabase.Client Supabase { get; private set; } = null!;
 
     protected E2ETestBase(PlaywrightFixture fixture)
     {
@@ -18,6 +19,13 @@ public abstract class E2ETestBase : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        // Inicjalizacja Supabase Client
+        var url = TestConfig.Supabase.Url;
+        var key = TestConfig.Supabase.Key;
+        var options = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+        Supabase = new Supabase.Client(url, key, options);
+        await Supabase.InitializeAsync();
+
         // KAŻDY test otrzymuje nowy, czysty kontekst przeglądarki.
         // Jest to odpowiednik trybu Incognito - sesje są w pełni izolowane (brak współdzielonych cookies/storage).
         Context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions

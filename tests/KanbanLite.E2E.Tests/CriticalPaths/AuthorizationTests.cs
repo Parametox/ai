@@ -28,8 +28,9 @@ public class AuthorizationTests : E2ETestBase
                               currentUrl.Contains("forbidden");
 
         // Lub sprawdź czy nie widać zawartości Dashboard
-        var dashboardContent = Page.Locator("text=Panel Managera");
-        var isVisible = await dashboardContent.IsVisibleAsync();
+        // Używamy nagłówka, aby uniknąć konfliktu z linkiem w nawigacji (gdyby był widoczny)
+        var dashboardHeading = Page.GetByRole(AriaRole.Heading, new() { Name = "Panel Managera" });
+        var isVisible = await dashboardHeading.IsVisibleAsync();
 
         Assert.True(hasAccessDenied || !isVisible, 
             "Operator nie powinien mieć dostępu do Dashboard Managera");
@@ -85,7 +86,7 @@ public class AuthorizationTests : E2ETestBase
 
         // Act & Assert - Dashboard
         await NavigateToAsync("/manager/dashboard");
-        var dashboardTitle = Page.Locator("text=Panel Managera");
+        var dashboardTitle = Page.GetByRole(AriaRole.Heading, new() { Name = "Panel Managera" });
         await Expect(dashboardTitle).ToBeVisibleAsync();
     }
 }

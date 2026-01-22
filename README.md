@@ -59,6 +59,29 @@ Zgodnie z `.ai/tech-stack.md`:
 Repozytorium zawiera już podstawową strukturę `.NET` oraz **warstwę dostępu do danych** (EF Core + PostgreSQL) z migracjami.
 Kontrakt DTO/Command Models (na potrzeby warstwy serwisów / UI Blazor Server) jest w `src/Types.cs`.
 
+### Konfiguracja środowisk
+
+Aplikacja obsługuje dwa środowiska:
+
+| Środowisko | Baza danych | Konfiguracja |
+|------------|-------------|--------------|
+| **Development** (Debug) | Lokalna PostgreSQL (localhost:5432) | `appsettings.Development.json` |
+| **Production** (Release/CI) | Supabase Cloud | `appsettings.json` + Environment Variable |
+
+#### Lokalne uruchomienie (Development)
+```powershell
+dotnet run --project src/Web
+# lub
+dotnet run --project src/Web --configuration Debug
+```
+Używa `appsettings.Development.json` z connection stringiem do localhost (User: `postgres`, Pass: `postgres`).
+
+#### Uruchomienie produkcyjne (Release)
+```powershell
+dotnet run --project src/Web --configuration Release
+```
+Używa `appsettings.json`. Wymaga ustawienia zmiennej środowiskowej `ConnectionStrings__KanbanConnectionString` lub sekretów do połączenia z Supabase.
+
 ### Wymagania
 
 - **.NET SDK 9** (wymagane przez aktualne projekty)
@@ -106,23 +129,44 @@ $env:PGPASSWORD="TwojeHasloPostgres"
 
 Migracje są w projekcie `src/DataAccess` (Code-First).
 
-Ustaw connection string (opcjonalnie — jest też domyślna wartość):
+#### Lokalnie (Development)
+Domyślnie używa localhost. Można uruchomić migracje:
 
 ```powershell
-$env:KANBANLITE_CONNECTION_STRING="Host=localhost;Port=5432;Database=kanbanlite;Username=kanbanlite;Password=kanbanlite"
-```
+# Przez DbMigrator (Development = localhost)
+dotnet run --project src/DbMigrator
 
-Zastosuj migracje do bazy:
-
-```powershell
+# Lub przez dotnet-ef
 dotnet tool run dotnet-ef database update --project src/DataAccess --startup-project src/DbMigrator
 ```
 
-Alternatywnie (aplikacja konsolowa wykonująca `Database.Migrate()`):
+#### Produkcja (Supabase)
+Ustaw connection string do Supabase:
 
 ```powershell
-dotnet run --project src/DbMigrator
+$env:ConnectionStrings__KanbanConnectionString="Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=TWOJE_HASLO;Pooling=true;Trust Server Certificate=true;"
+dotnet run --project src/DbMigrator --configuration Release
 ```
+
+### CI/CD (GitHub Actions)
+
+Pipeline używa Supabase jako bazy danych. Wymagane sekrety w GitHub:
+
+| Secret | Opis |
+|--------|------|
+| `SUPABASE_CONNECTION_STRING` | Pełny connection string do Supabase |
+| `SUPABASE_PUBLISHABLE_KEY` | Klucz API Supabase (publishable) |
+
+#### Konfiguracja sekretów w GitHub:
+1. Przejdź do **Settings** → **Secrets and variables** → **Actions**
+2. Dodaj `SUPABASE_CONNECTION_STRING`:
+   ```
+   Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=TWOJE_HASLO;Pooling=true;Trust Server Certificate=true;
+   ```
+3. Dodaj `SUPABASE_PUBLISHABLE_KEY`:
+   ```
+   sb_publishable_xxx
+   ```
 
 ### Struktura solucji
 

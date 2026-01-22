@@ -24,11 +24,11 @@ public class CreateOrderTests : E2ETestBase
 
         // Act
         // Wypełnij numer zlecenia
-        var orderNumberInput = Page.GetByTestId("order-number-input").Locator("input");
+        var orderNumberInput = Page.GetByTestId("order-number-input");
         await orderNumberInput.FillAsync(orderNumber);
 
         // Wypełnij ilość
-        var quantityInput = Page.GetByTestId("order-quantity-input").Locator("input");
+        var quantityInput = Page.GetByTestId("order-quantity-input");
         await quantityInput.FillAsync(quantity);
 
         // Wybierz format produktu (pierwszy dostępny)
@@ -39,14 +39,14 @@ public class CreateOrderTests : E2ETestBase
         await firstOption.ClickAsync();
 
         // Wybierz datę (MudDatePicker)
-        var datePicker = Page.GetByTestId("order-duedate-picker");
-        await datePicker.ClickAsync();
-        await Page.WaitForTimeoutAsync(300);
+        // Trying GetByLabel which is more robust for MudBlazor inputs if id/for match
+        var dateInput = Page.GetByLabel("Termin realizacji");
         
-        // Kliknij w picker i wybierz datę przez wpisanie
-        var dateInput = datePicker.Locator("input");
+        // Remove readonly if present just in case
+        await dateInput.EvaluateAsync("input => input.removeAttribute('readonly')");
         await dateInput.FillAsync(dueDate.ToString("dd.MM.yyyy"));
-        await Page.Keyboard.PressAsync("Escape"); // Zamknij picker
+        await dateInput.PressAsync("Enter");
+        await Page.Keyboard.PressAsync("Escape");
 
         // Wyślij formularz
         var submitButton = Page.GetByTestId("order-submit-button");
@@ -56,7 +56,9 @@ public class CreateOrderTests : E2ETestBase
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         
         // Sprawdź czy pojawił się snackbar z sukcesem lub przekierowano na kanban
-        var successIndicator = Page.Locator(".mud-snackbar-success, text=utworzon, text=Kanban");
+        var successIndicator = Page.Locator(".mud-snackbar-success")
+            .Or(Page.Locator("text=utworzon"))
+            .Or(Page.Locator("text=Kanban"));
         await Expect(successIndicator.First).ToBeVisibleAsync(new() { Timeout = 10000 });
     }
 
@@ -66,17 +68,19 @@ public class CreateOrderTests : E2ETestBase
         // Arrange
         await LoginAsManagerAsync();
         await NavigateToAsync("/manager/orders/create");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         // Act - kliknij submit bez wypełniania pól
         var submitButton = Page.GetByTestId("order-submit-button");
         await submitButton.ClickAsync();
 
         // Assert - Powinny pojawić się błędy walidacji
-        await Page.WaitForTimeoutAsync(500);
-        var validationErrors = Page.Locator(".mud-input-error, .validation-message, text=wymagany");
-        var errorCount = await validationErrors.CountAsync();
-        
-        Assert.True(errorCount > 0, "Powinny pojawić się błędy walidacji dla pustych pól");
+        // Check for specific validation messages
+        var orderNumberError = Page.Locator("text=Numer zlecenia jest wymagany");
+        var quantityError = Page.Locator("text=zakresu 1-100,000");
+
+        // Wait for at least one error to be visible
+        await Expect(orderNumberError.Or(quantityError).First).ToBeVisibleAsync(new() { Timeout = 5000 });
     }
 
     [Fact]

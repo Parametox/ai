@@ -39,10 +39,10 @@ public class FullWorkflowE2ETests : E2ETestBase
         var dueDate = DateTime.Now.AddDays(14);
 
         // Wypełnij formularz
-        var orderNumberInput = Page.GetByTestId("order-number-input").Locator("input");
+        var orderNumberInput = Page.GetByTestId("order-number-input");
         await orderNumberInput.FillAsync(orderNumber);
 
-        var quantityInput = Page.GetByTestId("order-quantity-input").Locator("input");
+        var quantityInput = Page.GetByTestId("order-quantity-input");
         await quantityInput.FillAsync(quantity);
 
         // Wybierz format produktu
@@ -54,10 +54,11 @@ public class FullWorkflowE2ETests : E2ETestBase
         await Page.WaitForTimeoutAsync(300);
 
         // Ustaw datę realizacji
-        var datePicker = Page.GetByTestId("order-duedate-picker");
-        var dateInput = datePicker.Locator("input");
-        await dateInput.ClickAsync();
+        var dateInput = Page.GetByLabel("Termin realizacji");
+        await dateInput.EvaluateAsync("input => input.removeAttribute('readonly')");
         await dateInput.FillAsync(dueDate.ToString("dd.MM.yyyy"));
+        await dateInput.PressAsync("Enter");
+        await Page.Keyboard.PressAsync("Escape");
         await Page.Keyboard.PressAsync("Tab");
         await Page.WaitForTimeoutAsync(300);
 

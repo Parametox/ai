@@ -22,7 +22,7 @@ public class ManagerDashboardTests : E2ETestBase
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         // Assert
-        var dashboardTitle = Page.Locator("text=Panel Managera");
+        var dashboardTitle = Page.GetByRole(AriaRole.Heading, new() { Name = "Panel Managera" });
         await Expect(dashboardTitle).ToBeVisibleAsync();
     }
 

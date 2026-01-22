@@ -1,5 +1,5 @@
 param(
-  [string]$ConnectionString = "Host=localhost;Port=5432;Database=kanbanlite;Username=kanbanlite;Password=kanbanlite"
+  [string]$ConnectionString = "Host=db.fntdzqdxfbddesaijpdr.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=ytkYBbGznj4NqWcfRvY6;Pooling=true;Trust Server Certificate=true;"
 )
 
 $ErrorActionPreference = "Stop"
