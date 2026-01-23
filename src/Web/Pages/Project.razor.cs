@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using KanbanLite.Application.Services;
-using KanbanLite.Application.Security;
 using KanbanLite.Web.Services;
 using DataAccess.Enums;
 using KanbanLite.Contracts;
@@ -14,7 +13,6 @@ public partial class Project
 
     [Inject] private IProjectService ProjectService { get; set; } = null!;
     [Inject] private ISessionService SessionService { get; set; } = null!;
-    [Inject] private ICurrentUser CurrentUser { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
 
@@ -33,7 +31,7 @@ public partial class Project
         }
         
         await LoadProjectAsync();
-        _isManager = CurrentUser.IsInRole("Manager");
+        _isManager = SessionService.IsInRole("Manager");
     }
 
     protected override async Task OnParametersSetAsync()

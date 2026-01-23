@@ -43,6 +43,12 @@ public partial class Dashboard
             return;
         }
         
+        if (!SessionService.IsInRole("Manager"))
+        {
+            Navigation.NavigateTo("/kanban", replace: true);
+            return;
+        }
+        
         await LoadDashboardData();
     }
 

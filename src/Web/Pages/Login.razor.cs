@@ -1,6 +1,5 @@
 using KanbanLite.Web.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace KanbanLite.Web.Pages;
@@ -9,7 +8,6 @@ public partial class Login
 {
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private IAuthService AuthService { get; set; } = null!;
-    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
 
     private bool _hasError;
     private bool _isLoading;
@@ -37,12 +35,6 @@ public partial class Login
             
             if (!string.IsNullOrEmpty(result))
             {
-                // Powiadom o zmianie stanu autentykacji
-                if (AuthStateProvider is RevalidatingIdentityAuthenticationStateProvider<DataAccess.Identity.ApplicationUser> provider)
-                {
-                    provider.NotifyAuthenticationStateChanged();
-                }
-                
                 // Przekierowanie na kanban
                 Navigation.NavigateTo(result, forceLoad: false);
             }

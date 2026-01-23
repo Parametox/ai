@@ -26,6 +26,12 @@ public partial class CreateOrder
             return;
         }
         
+        if (!SessionService.IsInRole("Manager"))
+        {
+            Navigation.NavigateTo("/kanban", replace: true);
+            return;
+        }
+        
         try
         {
             var result = await ProductFormatService.GetActiveLookupAsync();
