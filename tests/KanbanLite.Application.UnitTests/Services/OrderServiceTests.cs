@@ -4,16 +4,22 @@ using KanbanLite.Application.Services;
 using KanbanLite.Contracts;
 using NSubstitute;
 using Xunit;
+using FluentValidation;
+using AutoMapper;
 
 namespace KanbanLite.Application.UnitTests.Services;
 
 public class OrderServiceTests : TestBase
 {
     private readonly OrderService _sut;
+    private readonly IValidator<CreateOrderRequest> _createOrderValidator;
+    private readonly IMapper _mapper;
 
     public OrderServiceTests()
     {
-        _sut = new OrderService(DbFactory, CurrentUser);
+        _createOrderValidator = Substitute.For<IValidator<CreateOrderRequest>>();
+        _mapper = Substitute.For<IMapper>();
+        _sut = new OrderService(DbFactory, CurrentUser, _createOrderValidator, _mapper);
     }
 
     [Fact]
@@ -38,6 +44,12 @@ public class OrderServiceTests : TestBase
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
 
+        var validationResult = new FluentValidation.Results.ValidationResult(
+            new[] { new FluentValidation.Results.ValidationFailure("Quantity", "Quantity must be greater than 0") }
+        );
+        _createOrderValidator.ValidateAsync(Arg.Any<CreateOrderRequest>(), Arg.Any<CancellationToken>())
+            .Returns(validationResult);
+
         // Act
         // Quantity 0 is invalid
         var result = await _sut.CreateAsync(new CreateOrderRequest("ORD-1", 0, 1, DateOnly.FromDateTime(DateTime.Today.AddDays(7))));
@@ -53,6 +65,9 @@ public class OrderServiceTests : TestBase
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
+        
+        _createOrderValidator.ValidateAsync(Arg.Any<CreateOrderRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new FluentValidation.Results.ValidationResult());
         
         var formatId = 10L;
         DbContext.ProductFormats.Add(new ProductFormat { Id = formatId, Name = "A5", IsActive = false });
@@ -75,6 +90,9 @@ public class OrderServiceTests : TestBase
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
         
+        _createOrderValidator.ValidateAsync(Arg.Any<CreateOrderRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new FluentValidation.Results.ValidationResult());
+        
         var formatId = 20L;
         DbContext.ProductFormats.Add(new ProductFormat { Id = formatId, Name = "A5", IsActive = true });
         // No split rules in DB
@@ -96,6 +114,9 @@ public class OrderServiceTests : TestBase
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
+        
+        _createOrderValidator.ValidateAsync(Arg.Any<CreateOrderRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new FluentValidation.Results.ValidationResult());
         
         var formatId = 30L;
         DbContext.ProductFormats.Add(new ProductFormat { Id = formatId, Name = "A5", IsActive = true });
