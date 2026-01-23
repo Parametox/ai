@@ -1,6 +1,8 @@
+using FluentValidation;
 using KanbanLite.Application.Services;
 using KanbanLite.Application.Security;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace KanbanLite.Application;
 
@@ -30,6 +32,7 @@ public static class DependencyInjection
     /// </remarks>
     public static IServiceCollection AddKanbanLiteApplication(this IServiceCollection services)
     {
+        // Register services
         services.AddScoped<IBatchService, BatchService>();
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IBatchAuditService, BatchAuditService>();
@@ -37,6 +40,12 @@ public static class DependencyInjection
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IProductFormatService, ProductFormatService>();
         services.AddScoped<IBatchSplitRuleService, BatchSplitRuleService>();
+
+        // Register AutoMapper
+        services.AddAutoMapper(Assembly.GetExecutingAssembly());
+
+        // Register FluentValidation validators
+        services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
         return services;
     }

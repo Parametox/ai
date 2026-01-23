@@ -1,7 +1,10 @@
 using System.Globalization;
+using AutoMapper;
 using DataAccess;
 using DataAccess.Entities;
 using DataAccess.Enums;
+using DataAccess.Repositories;
+using FluentValidation;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
@@ -11,8 +14,24 @@ using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IOrderService
+public sealed class OrderService : IOrderService
 {
+    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly ICurrentUser _currentUser;
+    private readonly IValidator<CreateOrderRequest> _createOrderValidator;
+    private readonly IMapper _mapper;
+
+    public OrderService(
+        IDbContextFactory<AppDbContext> dbFactory, 
+        ICurrentUser currentUser,
+        IValidator<CreateOrderRequest> createOrderValidator,
+        IMapper mapper)
+    {
+        _dbFactory = dbFactory;
+        _currentUser = currentUser;
+        _createOrderValidator = createOrderValidator;
+        _mapper = mapper;
+    }
     public async Task<Result<CreateOrderResult>> CreateAsync(CreateOrderRequest request, CancellationToken ct = default)
     {
         if (request is null)
@@ -24,24 +43,34 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
                 }));
         }
 
-        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
+        var authError = EnsureManagerAuthorized(_currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null)
         {
             return Result<CreateOrderResult>.Fail(authError);
         }
 
-        var normalized = Normalize(request);
-        var validation = Validate(normalized);
-        if (validation is not null)
+        // FluentValidation
+        var validationResult = await _createOrderValidator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
         {
-            return Result<CreateOrderResult>.Fail(validation);
+            var errors = validationResult.Errors
+                .GroupBy(e => e.PropertyName)
+                .ToDictionary(
+                    g => g.Key, 
+                    g => (IReadOnlyList<string>)g.Select(e => e.ErrorMessage).ToList());
+            
+            return Result<CreateOrderResult>.Fail(
+                AppError.ValidationFailed("Nieprawidłowe dane wejściowe.", errors));
         }
+
+        var normalized = Normalize(request);
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+            using var unitOfWork = new UnitOfWork(db);
             
-            var productFormat = await db.ProductFormats.SingleOrDefaultAsync(x => x.Id == normalized.ProductFormatId, ct);
+            var productFormat = await unitOfWork.ProductFormats.SingleOrDefaultAsync(x => x.Id == normalized.ProductFormatId, ct);
             if (productFormat is null)
             {
                 return Result<CreateOrderResult>.Fail(AppError.ValidationFailed(
@@ -56,7 +85,7 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
                     new Dictionary<string, IReadOnlyList<string>> { ["productFormatId"] = ["Wybierz aktywny format."] }));
             }
 
-            var splitRule = await FindActiveSplitRuleForQuantityAsync(db, normalized.Quantity, ct);
+            var splitRule = await FindActiveSplitRuleForQuantityAsync(unitOfWork, normalized.Quantity, ct);
             if (splitRule is null)
             {
                 return Result<CreateOrderResult>.Fail(AppError.ValidationFailed(
@@ -89,62 +118,35 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
             var batches = CreateBatches(project, orderQty: order.Quantity, splitRule, now);
 
-            IDbContextTransaction? tx = null;
-            if (SupportsTransactions(db))
-            {
-                tx = await db.Database.BeginTransactionAsync(ct);
-            }
+            await unitOfWork.BeginTransactionAsync(ct);
 
             try
             {
-                db.Orders.Add(order);
-                db.Projects.Add(project);
-                db.Batches.AddRange(batches);
+                unitOfWork.Orders.Add(order);
+                unitOfWork.Projects.Add(project);
+                unitOfWork.Batches.AddRange(batches);
 
-                await db.SaveChangesAsync(ct);
+                await unitOfWork.SaveChangesAsync(ct);
+                await unitOfWork.CommitTransactionAsync(ct);
 
-                if (tx is not null)
-                {
-                    await tx.CommitAsync(ct);
-                }
+                // AutoMapper mappings
+                var orderDto = _mapper.Map<OrderDto>(order);
+                var projectDto = _mapper.Map<ProjectDto>(project);
+                var batchDtos = batches
+                    .OrderBy(b => b.BatchNo)
+                    .Select(b => _mapper.Map<BatchDto>(b))
+                    .ToList();
 
                 return Result<CreateOrderResult>.Ok(new CreateOrderResult(
-                    Order: new OrderDto(
-                        order.Id,
-                        order.OrderNumber,
-                        order.Quantity,
-                        order.ProductFormatId,
-                        order.DueDate,
-                        order.CreatedAt
-                    ),
-                    Project: new ProjectDto(
-                        project.Id,
-                        project.OrderId,
-                        project.ProjectNumber,
-                        project.IsCompleted,
-                        project.CreatedAt
-                    ),
-                    Batches: batches
-                        .OrderBy(b => b.BatchNo)
-                        .Select(b => new BatchDto(
-                            b.Id,
-                            b.ProjectId,
-                            b.BatchNo,
-                            b.Quantity,
-                            b.Status,
-                            b.Stage,
-                            b.CreatedAt,
-                            b.UpdatedAt
-                        ))
-                        .ToList()
+                    Order: orderDto,
+                    Project: projectDto,
+                    Batches: batchDtos
                 ));
             }
-            finally
+            catch
             {
-                if (tx is not null)
-                {
-                    await tx.DisposeAsync();
-                }
+                await unitOfWork.RollbackTransactionAsync(ct);
+                throw;
             }
         }
         catch (OperationCanceledException)
@@ -173,7 +175,7 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
                 }));
         }
 
-        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
+        var authError = EnsureManagerAuthorized(_currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null)
         {
             return Result<PagedResult<OrderListItemDto>>.Fail(authError);
@@ -191,7 +193,7 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
             
             var baseQuery =
                 from o in db.Orders.AsNoTracking()
@@ -254,7 +256,7 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
     public async Task<Result<OrderDetailsDto>> GetByIdAsync(long id, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
+        var authError = EnsureManagerAuthorized(_currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null)
         {
             return Result<OrderDetailsDto>.Fail(authError);
@@ -262,7 +264,7 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
             
             var header = await (
                 from o in db.Orders.AsNoTracking()
@@ -314,64 +316,25 @@ public sealed class OrderService(IDbContextFactory<AppDbContext> dbFactory, ICur
         }
     }
 
-    private static bool SupportsTransactions(AppDbContext db)
-        => !string.Equals(
-            db.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.InMemory",
-            StringComparison.Ordinal);
-
     private static CreateOrderRequest Normalize(CreateOrderRequest request)
         => request with
         {
             OrderNumber = request.OrderNumber.Trim()
         };
 
-    private static AppError? Validate(CreateOrderRequest request)
-    {
-        var errors = new Dictionary<string, IReadOnlyList<string>>();
-
-        if (string.IsNullOrWhiteSpace(request.OrderNumber))
-        {
-            errors["orderNumber"] = ["Wymagane."];
-        }
-        else if (request.OrderNumber.Length > 100)
-        {
-            errors["orderNumber"] = ["Maksymalna długość to 100 znaków."];
-        }
-
-        if (request.Quantity is < 1 or > 100000)
-        {
-            errors["quantity"] = ["Musi być w zakresie 1..100000."];
-        }
-
-        // dueDate >= dziś + 7 dni (PRD)
-        var minDue = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(7));
-        if (request.DueDate < minDue)
-        {
-            errors["dueDate"] = [$"Minimalna data realizacji to {minDue.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}."];
-        }
-
-        if (request.ProductFormatId <= 0)
-        {
-            errors["productFormatId"] = ["Wymagane."];
-        }
-
-        return errors.Count > 0
-            ? AppError.ValidationFailed("Nieprawidłowe dane wejściowe.", errors)
-            : null;
-    }
-
-    private static async Task<BatchSplitRule?> FindActiveSplitRuleForQuantityAsync(AppDbContext db, int quantity, CancellationToken ct)
+    private static async Task<BatchSplitRule?> FindActiveSplitRuleForQuantityAsync(IUnitOfWork unitOfWork, int quantity, CancellationToken ct)
     {
         // Zakładamy brak overlapów aktywnych (walidowane w BatchSplitRuleService w przyszłości).
         // Dobieramy najbardziej "szczegółową" regułę: najwyższy MinQty, a przy remisie najniższy MaxQty.
-        return await db.BatchSplitRules.AsNoTracking()
+        var rules = await unitOfWork.BatchSplitRules.QueryNoTracking()
             .Where(r => r.IsActive)
             .Where(r => r.MinQty <= quantity)
             .Where(r => r.MaxQty == null || quantity <= r.MaxQty.Value)
             .OrderByDescending(r => r.MinQty)
             .ThenBy(r => r.MaxQty == null ? int.MaxValue : r.MaxQty.Value)
-            .SingleOrDefaultAsync(ct);
+            .ToListAsync(ct);
+        
+        return rules.FirstOrDefault();
     }
 
     private static List<Batch> CreateBatches(Project project, int orderQty, BatchSplitRule splitRule, DateTimeOffset now)

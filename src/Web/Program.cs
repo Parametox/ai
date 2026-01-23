@@ -1,5 +1,6 @@
 using DataAccess;
 using DataAccess.Identity;
+using DataAccess.Repositories;
 using KanbanLite.Application;
 using KanbanLite.Application.Security;
 using KanbanLite.Web;
@@ -42,6 +43,9 @@ var connectionString = builder.Configuration.GetConnectionString("KanbanConnecti
 // AddDbContextFactory automatycznie rejestruje też AppDbContext jako scoped dla Identity
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString), ServiceLifetime.Scoped);
+
+// Repository Pattern - UnitOfWork
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
