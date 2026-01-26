@@ -82,7 +82,7 @@ public abstract class E2ETestBase : IAsyncLifetime
         if (completedTask == errorTask && errorTask.IsCompletedSuccessfully)
         {
             var errorText = await Page.Locator(".alert-error").InnerTextAsync();
-            throw new Exception($"Login failed with UI error: {errorText}");
+            throw new Exception($"Login failed with UI error: {errorText}. Credentials used: Username='{username}', Password='{password}'");
         }
 
         // Jeśli nawigacja wygrała lub nastąpił timeout błędów -> czekaj na nawigację
@@ -96,28 +96,9 @@ public abstract class E2ETestBase : IAsyncLifetime
             if (await Page.Locator(".alert-error").IsVisibleAsync())
             {
                 var errorText = await Page.Locator(".alert-error").InnerTextAsync();
-                throw new Exception($"Login failed: {errorText}");
+                throw new Exception($"Login failed: {errorText}. Credentials used: Username='{username}', Password='{password}'");
             }
-            throw new Exception($"Login Timeout. Current URL: {Page.Url}. Ensure the database is seeded with test users.");
-        }
-
-        // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
-        await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions
-        {
-            State = WaitForSelectorState.Visible,
-            Timeout = TestConfig.Timeouts.NavigationTimeout
-        });
-    }
-
-    /// <summary>
-    /// Logowanie jako Manager.
-    /// </summary>
-    protected Task LoginAsManagerAsync() =>
-        LoginAsync(TestConfig.ManagerUser.Username, TestConfig.ManagerUser.Password);
-
-    /// <summary>
-    /// Logowanie jako Operator.
-    /// </summary>
+            throw new Exception($"Login Timeout. Current URL: {Page.Url}. Ensure the database is seeded with test users. Credentials used: Username='{username}', Password='{password}'");
     protected Task LoginAsOperatorAsync() =>
         LoginAsync(TestConfig.OperatorUser.Username, TestConfig.OperatorUser.Password);
 

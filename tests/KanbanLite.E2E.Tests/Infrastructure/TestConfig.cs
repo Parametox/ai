@@ -28,6 +28,22 @@ public static class TestConfig
         _settings = JsonSerializer.Deserialize<TestSettings>(json)
                     ?? throw new InvalidOperationException("Failed to deserialize configuration.");
 
+        // Obsługa nadpisywania przez zmienne środowiskowe (dla CI/CD w GitHub Actions)
+        var envBaseUrl = Environment.GetEnvironmentVariable("E2E_BASE_URL");
+        if (!string.IsNullOrWhiteSpace(envBaseUrl)) _settings.BaseUrl = envBaseUrl;
+
+        var envManagerUser = Environment.GetEnvironmentVariable("E2E_MANAGER_USERNAME");
+        if (!string.IsNullOrWhiteSpace(envManagerUser)) _settings.ManagerUser!.Username = envManagerUser;
+
+        var envManagerPass = Environment.GetEnvironmentVariable("E2E_MANAGER_PASSWORD");
+        if (!string.IsNullOrWhiteSpace(envManagerPass)) _settings.ManagerUser!.Password = envManagerPass;
+
+        var envOperatorUser = Environment.GetEnvironmentVariable("E2E_OPERATOR_USERNAME");
+        if (!string.IsNullOrWhiteSpace(envOperatorUser)) _settings.OperatorUser!.Username = envOperatorUser;
+
+        var envOperatorPass = Environment.GetEnvironmentVariable("E2E_OPERATOR_PASSWORD");
+        if (!string.IsNullOrWhiteSpace(envOperatorPass)) _settings.OperatorUser!.Password = envOperatorPass;
+
         // Walidacja
         if (string.IsNullOrWhiteSpace(_settings.BaseUrl))
             throw new InvalidOperationException("BaseUrl is missing in config.");
