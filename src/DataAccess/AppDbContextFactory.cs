@@ -12,7 +12,7 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
     {
         var connectionString =
             Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
-            ?? "Host=db.fntdzqdxfbddesaijpdr.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=ytkYBbGznj4NqWcfRvY6;Pooling=true;Trust Server Certificate=true;";
+            ?? throw new InvalidOperationException("Connection string 'KANBANLITE_CONNECTION_STRING' not found in environment variables.");
 
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         optionsBuilder.UseNpgsql(connectionString);

@@ -74,7 +74,7 @@ dotnet run --project src/Web
 # lub
 dotnet run --project src/Web --configuration Debug
 ```
-Używa `appsettings.Development.json` z connection stringiem do localhost (User: `postgres`, Pass: `postgres`).
+Używa `appsettings.Development.json` z connection stringiem do localhost. Skonfiguruj connection string w pliku konfiguracyjnym lub przez zmienne środowiskowe.
 
 #### Uruchomienie produkcyjne (Release)
 ```powershell
@@ -110,7 +110,7 @@ Jeśli instalujesz PostgreSQL lokalnie na Windows, upewnij się, że masz w PATH
 1) Ustaw hasło admina (z instalatora) jako `PGPASSWORD`:
 
 ```powershell
-$env:PGPASSWORD="TwojeHasloPostgres"
+$env:PGPASSWORD="YOUR_POSTGRES_PASSWORD"
 ```
 
 2) Utwórz rolę + bazę:
@@ -141,12 +141,14 @@ dotnet tool run dotnet-ef database update --project src/DataAccess --startup-pro
 ```
 
 #### Produkcja (Supabase)
-Ustaw connection string do Supabase:
+Ustaw connection string do Supabase przez zmienną środowiskową:
 
 ```powershell
-$env:ConnectionStrings__KanbanConnectionString="Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=TWOJE_HASLO;Pooling=true;Trust Server Certificate=true;"
+$env:ConnectionStrings__KanbanConnectionString="Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=YOUR_PASSWORD;Pooling=true;Trust Server Certificate=true;"
 dotnet run --project src/DbMigrator --configuration Release
 ```
+
+**Uwaga:** Nigdy nie commituj rzeczywistych connection stringów z hasłami do repozytorium. Używaj zmiennych środowiskowych lub sekretów.
 
 ### CI/CD (GitHub Actions)
 
@@ -155,18 +157,38 @@ Pipeline używa Supabase jako bazy danych. Wymagane sekrety w GitHub:
 | Secret | Opis |
 |--------|------|
 | `SUPABASE_CONNECTION_STRING` | Pełny connection string do Supabase |
+| `SUPABASE_URL` | URL projektu Supabase (np. `https://xxx.supabase.co`) |
 | `SUPABASE_PUBLISHABLE_KEY` | Klucz API Supabase (publishable) |
 
 #### Konfiguracja sekretów w GitHub:
 1. Przejdź do **Settings** → **Secrets and variables** → **Actions**
 2. Dodaj `SUPABASE_CONNECTION_STRING`:
    ```
-   Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=TWOJE_HASLO;Pooling=true;Trust Server Certificate=true;
+   Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=YOUR_PASSWORD;Pooling=true;Trust Server Certificate=true;
    ```
 3. Dodaj `SUPABASE_PUBLISHABLE_KEY`:
    ```
-   sb_publishable_xxx
+   sb_publishable_YOUR_KEY
    ```
+
+**Uwaga:** Zastąp `YOUR_PASSWORD` i `YOUR_KEY` rzeczywistymi wartościami z Twojego projektu Supabase.
+
+### Bezpieczeństwo
+
+⚠️ **WAŻNE**: Projekt został zaktualizowany, aby nie zawierał wrażliwych danych w repozytorium.
+
+- **Connection stringi** i **hasła** zostały usunięte z plików konfiguracyjnych
+- **Klucze API** i **URL-e Supabase** zostały usunięte z kodu źródłowego
+- Wszystkie wrażliwe dane powinny być konfigurowane przez:
+  - **Zmienne środowiskowe** (lokalnie)
+  - **Sekrety GitHub Actions** (CI/CD)
+  - **Azure Key Vault** lub podobne rozwiązania (produkcja)
+
+Pliki, które wymagają konfiguracji przed uruchomieniem:
+- `src/Web/appsettings.json` - connection string i klucze Supabase
+- `src/Web/appsettings.Development.json` - connection string do lokalnej bazy
+- `src/DbMigrator/appsettings.json` - connection string do migracji
+- `tests/KanbanLite.E2E.Tests/appsettings.e2e.*.json` - konfiguracja testów E2E
 
 ### Struktura solucji
 

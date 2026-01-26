@@ -19,14 +19,19 @@ public sealed class IdentitySeedTests
 
         var connectionString =
             Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=kanbanlite;Username=postgres;Password=postgres";
+            ?? throw new InvalidOperationException("Connection string 'KANBANLITE_CONNECTION_STRING' not found in environment variables. Set it before running this test.");
 
         // Inicjalizacja Supabase Client (opcjonalnie, jeśli chcesz używać go zamiast EF Core)
-        var supabaseUrl = "https://fntdzqdxfbddesaijpdr.supabase.co";
-        var supabaseKey = "sb_publishable_j9ivqerfdqVOXkgTun7sLg__jZgxnaq";
-        var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
-        var supabaseClient = new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions);
-        await supabaseClient.InitializeAsync();
+        // Uwaga: Ustaw SUPABASE_URL i SUPABASE_KEY przez zmienne środowiskowe
+        var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL") ?? "";
+        var supabaseKey = Environment.GetEnvironmentVariable("SUPABASE_KEY") ?? "";
+
+        if (!string.IsNullOrEmpty(supabaseUrl) && !string.IsNullOrEmpty(supabaseKey))
+        {
+            var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+            var supabaseClient = new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions);
+            await supabaseClient.InitializeAsync();
+        }
 
         var services = new ServiceCollection();
 
