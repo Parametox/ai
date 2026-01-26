@@ -1,0 +1,315 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    branches: [main, master]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint Code
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Verify code formatting
+        run: dotnet format --verify-no-changes --verbosity diagnostic
+
+  unit-test:
+    runs-on: ubuntu-latest
+    name: Unit Tests
+    needs: lint
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run Unit Tests with Coverage
+        run: |
+          dotnet test tests/KanbanLite.Application.UnitTests \
+            --no-build \
+            --configuration Release \
+            --verbosity normal \
+            --logger "trx;LogFileName=unit-tests.trx" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory:"${{ runner.temp }}/TestResults"
+
+      - name: Upload Unit Test Results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: unit-test-results
+          path: '${{ runner.temp }}/TestResults/**/*.trx'
+          retention-days: 7
+
+      - name: Upload Coverage Reports
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: unit-test-coverage
+          path: '${{ runner.temp }}/TestResults/**/coverage.cobertura.xml'
+          retention-days: 7
+
+  e2e-test:
+    runs-on: ubuntu-latest
+    name: E2E Tests
+    needs: lint
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration Release
+
+      - name: Start application in background
+        run: |
+          dotnet run --project src/Web --configuration Release --urls "http://localhost:5145" &
+          echo $! > app.pid
+          sleep 15
+        env:
+          ConnectionStrings__KanbanConnectionString: ${{ secrets.SUPABASE_CONNECTION_STRING }}
+          Supabase__Url: "https://fntdzqdxfbddesaijpdr.supabase.co"
+          Supabase__Key: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          ASPNETCORE_ENVIRONMENT: Production
+
+      - name: Wait for application to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:5145/login > /dev/null; then
+              echo "Application is ready!"
+              break
+            fi
+            echo "Waiting for application... ($i/30)"
+            sleep 2
+          done
+
+      - name: Build E2E Tests project
+        run: dotnet build tests/KanbanLite.E2E.Tests --configuration Release
+
+      - name: Run E2E Tests with Coverage
+        run: |
+          dotnet test tests/KanbanLite.E2E.Tests \
+            --no-build \
+            --configuration Release \
+            --verbosity normal \
+            --logger "trx;LogFileName=e2e-tests.trx" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory:"${{ runner.temp }}/TestResults"
+        env:
+          E2E_BASE_URL: "http://localhost:5145"
+          E2E_MANAGER_USERNAME: "menago"
+          E2E_MANAGER_PASSWORD: "menago"
+          E2E_OPERATOR_USERNAME: "operator"
+          E2E_OPERATOR_PASSWORD: "operator"
+          PLAYWRIGHT_HEADLESS: "true"
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ -f app.pid ]; then
+            kill $(cat app.pid) || true
+          fi
+
+      - name: Upload E2E Test Results
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: e2e-test-results
+          path: '${{ runner.temp }}/TestResults/**/*.trx'
+          retention-days: 7
+
+      - name: Upload E2E Coverage Reports
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: e2e-test-coverage
+          path: '${{ runner.temp }}/TestResults/**/coverage.cobertura.xml'
+          retention-days: 7
+
+      - name: Upload Playwright Traces
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: playwright-traces
+          path: '**/playwright-traces/'
+          retention-days: 7
+
+  status-comment:
+    runs-on: ubuntu-latest
+    name: PR Status Comment
+    needs: [lint, unit-test, e2e-test]
+    if: always() && needs.lint.result == 'success' && needs.unit-test.result == 'success' && needs.e2e-test.result == 'success'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download Unit Test Results
+        uses: actions/download-artifact@v7
+        with:
+          name: unit-test-results
+          path: unit-test-results
+
+      - name: Download E2E Test Results
+        uses: actions/download-artifact@v7
+        with:
+          name: e2e-test-results
+          path: e2e-test-results
+
+      - name: Download Unit Test Coverage
+        uses: actions/download-artifact@v7
+        with:
+          name: unit-test-coverage
+          path: unit-test-coverage
+          continue-on-error: true
+
+      - name: Download E2E Test Coverage
+        uses: actions/download-artifact@v7
+        with:
+          name: e2e-test-coverage
+          path: e2e-test-coverage
+          continue-on-error: true
+
+      - name: Parse Test Results
+        id: parse-results
+        run: |
+          UNIT_TESTS=$(find unit-test-results -name "*.trx" -type f | head -1)
+          E2E_TESTS=$(find e2e-test-results -name "*.trx" -type f | head -1)
+          
+          if [ -f "$UNIT_TESTS" ]; then
+            UNIT_PASSED=$(grep -o 'outcome="Passed"' "$UNIT_TESTS" | wc -l || echo "0")
+            UNIT_FAILED=$(grep -o 'outcome="Failed"' "$UNIT_TESTS" | wc -l || echo "0")
+            UNIT_TOTAL=$((UNIT_PASSED + UNIT_FAILED))
+          else
+            UNIT_PASSED="0"
+            UNIT_FAILED="0"
+            UNIT_TOTAL="0"
+          fi
+          
+          if [ -f "$E2E_TESTS" ]; then
+            E2E_PASSED=$(grep -o 'outcome="Passed"' "$E2E_TESTS" | wc -l || echo "0")
+            E2E_FAILED=$(grep -o 'outcome="Failed"' "$E2E_TESTS" | wc -l || echo "0")
+            E2E_TOTAL=$((E2E_PASSED + E2E_FAILED))
+          else
+            E2E_PASSED="0"
+            E2E_FAILED="0"
+            E2E_TOTAL="0"
+          fi
+          
+          echo "unit_passed=$UNIT_PASSED" >> $GITHUB_OUTPUT
+          echo "unit_failed=$UNIT_FAILED" >> $GITHUB_OUTPUT
+          echo "unit_total=$UNIT_TOTAL" >> $GITHUB_OUTPUT
+          echo "e2e_passed=$E2E_PASSED" >> $GITHUB_OUTPUT
+          echo "e2e_failed=$E2E_FAILED" >> $GITHUB_OUTPUT
+          echo "e2e_total=$E2E_TOTAL" >> $GITHUB_OUTPUT
+
+      - name: Create PR Comment
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const comment = `## ✅ Pull Request Checks - All Passed
+            
+            ### 📊 Test Results
+            
+            | Test Type | Passed | Failed | Total |
+            |-----------|--------|--------|-------|
+            | **Unit Tests** | ${{ steps.parse-results.outputs.unit_passed }} | ${{ steps.parse-results.outputs.unit_failed }} | ${{ steps.parse-results.outputs.unit_total }} |
+            | **E2E Tests** | ${{ steps.parse-results.outputs.e2e_passed }} | ${{ steps.parse-results.outputs.e2e_failed }} | ${{ steps.parse-results.outputs.e2e_total }} |
+            
+            ### ✅ Status
+            
+            - ✅ **Lint**: Code formatting verified
+            - ✅ **Unit Tests**: All tests passed
+            - ✅ **E2E Tests**: All tests passed
+            
+            ### 📈 Coverage
+            
+            Coverage reports are available in the workflow artifacts.
+            
+            ---
+            *This comment was automatically generated by GitHub Actions*`;
+            
+            // Find existing comment
+            const prNumber = context.issue.number;
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Pull Request Checks')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: comment
+              });
+            }
