@@ -66,20 +66,20 @@ public abstract class E2ETestBase : IAsyncLifetime
         // Zmiana strategii oczekiwania dla Blazor Server:
         // Zamiast czekać na Load (który może nie nadejść lub trwać długo), czekamy na URL
         // z opcją Commit (serwer zaczął odpowiadać) LUB od razu na element interfejsu (Wyloguj).
-        
-        try 
+
+        try
         {
             await Page.WaitForURLAsync(url => !url.Contains("/login"), new PageWaitForURLOptions
             {
                 WaitUntil = WaitUntilState.Commit,
                 Timeout = TestConfig.Timeouts.NavigationTimeout
             });
-            
+
             // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
-            await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions 
-            { 
+            await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions
+            {
                 State = WaitForSelectorState.Visible,
-                Timeout = TestConfig.Timeouts.NavigationTimeout 
+                Timeout = TestConfig.Timeouts.NavigationTimeout
             });
         }
         catch (TimeoutException)
