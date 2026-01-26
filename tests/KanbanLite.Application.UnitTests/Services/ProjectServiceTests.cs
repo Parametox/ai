@@ -94,7 +94,7 @@ public class ProjectServiceTests : TestBase
 
         var order1 = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
         var order2 = new Order { Id = 2, OrderNumber = "ORD-2", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        
+
         var completedProject = new Project { Id = 1, OrderId = order1.Id, ProjectNumber = "PRJ-1", IsCompleted = true, CreatedAt = DateTimeOffset.UtcNow };
         var activeProject = new Project { Id = 2, OrderId = order2.Id, ProjectNumber = "PRJ-2", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
 
@@ -179,14 +179,14 @@ public class ProjectServiceTests : TestBase
         CurrentUser.IsInRole("Manager").Returns(true);
 
         var format = new ProductFormat { Id = 1, Name = "A4", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
-        var order = new Order 
-        { 
-            Id = 1, 
-            OrderNumber = "ORD-1", 
+        var order = new Order
+        {
+            Id = 1,
+            OrderNumber = "ORD-1",
             ProductFormatId = 1,
             Quantity = 1000,
-            DueDate = DateOnly.FromDateTime(DateTime.Today), 
-            CreatedAt = DateTimeOffset.UtcNow 
+            DueDate = DateOnly.FromDateTime(DateTime.Today),
+            CreatedAt = DateTimeOffset.UtcNow
         };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
 
@@ -214,17 +214,17 @@ public class ProjectServiceTests : TestBase
         CurrentUser.IsInRole("Manager").Returns(true);
 
         var format = new ProductFormat { Id = 1, Name = "A4", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
-        var order = new Order 
-        { 
-            Id = 1, 
-            OrderNumber = "ORD-1", 
+        var order = new Order
+        {
+            Id = 1,
+            OrderNumber = "ORD-1",
             ProductFormatId = 1,
             Quantity = 1000,
-            DueDate = DateOnly.FromDateTime(DateTime.Today), 
-            CreatedAt = DateTimeOffset.UtcNow 
+            DueDate = DateOnly.FromDateTime(DateTime.Today),
+            CreatedAt = DateTimeOffset.UtcNow
         };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        
+
         var batch1 = new Batch { Id = 1, ProjectId = 1, BatchNo = 1, Quantity = 500, Status = BatchStatus.Done, Stage = ProductionStage.Ship, UpdatedAt = DateTimeOffset.UtcNow };
         var batch2 = new Batch { Id = 2, ProjectId = 1, BatchNo = 2, Quantity = 500, Status = BatchStatus.InProgress, Stage = ProductionStage.Print, UpdatedAt = DateTimeOffset.UtcNow };
 
@@ -251,17 +251,17 @@ public class ProjectServiceTests : TestBase
         CurrentUser.IsInRole("Manager").Returns(true);
 
         var format = new ProductFormat { Id = 1, Name = "A4", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
-        var order = new Order 
-        { 
-            Id = 1, 
-            OrderNumber = "ORD-1", 
+        var order = new Order
+        {
+            Id = 1,
+            OrderNumber = "ORD-1",
             ProductFormatId = 1,
             Quantity = 1000,
-            DueDate = DateOnly.FromDateTime(DateTime.Today), 
-            CreatedAt = DateTimeOffset.UtcNow 
+            DueDate = DateOnly.FromDateTime(DateTime.Today),
+            CreatedAt = DateTimeOffset.UtcNow
         };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        
+
         var batch = new Batch { Id = 1, ProjectId = 1, BatchNo = 1, Quantity = 1000, Status = BatchStatus.Done, Stage = ProductionStage.Ship, UpdatedAt = DateTimeOffset.UtcNow };
 
         DbContext.ProductFormats.Add(format);
@@ -287,17 +287,17 @@ public class ProjectServiceTests : TestBase
         CurrentUser.IsInRole("Manager").Returns(true);
 
         var format = new ProductFormat { Id = 1, Name = "A4", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
-        var order = new Order 
-        { 
-            Id = 1, 
-            OrderNumber = "ORD-1", 
+        var order = new Order
+        {
+            Id = 1,
+            OrderNumber = "ORD-1",
             ProductFormatId = 1,
             Quantity = 1000,
-            DueDate = DateOnly.FromDateTime(DateTime.Today), 
-            CreatedAt = DateTimeOffset.UtcNow 
+            DueDate = DateOnly.FromDateTime(DateTime.Today),
+            CreatedAt = DateTimeOffset.UtcNow
         };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        
+
         var batch = new Batch { Id = 1, ProjectId = 1, BatchNo = 1, Quantity = 1000, Status = BatchStatus.InProgress, Stage = ProductionStage.Print, UpdatedAt = DateTimeOffset.UtcNow };
 
         DbContext.ProductFormats.Add(format);
@@ -371,15 +371,15 @@ public class ProjectServiceTests : TestBase
         CurrentUser.IsInRole("Manager").Returns(true);
 
         var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project = new Project 
-        { 
-            Id = 1, 
-            OrderId = order.Id, 
-            ProjectNumber = "PRJ-1", 
+        var project = new Project
+        {
+            Id = 1,
+            OrderId = order.Id,
+            ProjectNumber = "PRJ-1",
             IsCompleted = true,
             CompletedAt = DateTimeOffset.UtcNow,
             CompletedByUserId = "manager",
-            CreatedAt = DateTimeOffset.UtcNow 
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         DbContext.Orders.Add(order);
@@ -573,7 +573,7 @@ public class ProjectServiceTests : TestBase
         var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
         var batch = new Batch { Id = 1, ProjectId = 1, BatchNo = 1, Quantity = 500, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-        
+
         var auditLog = new BatchAuditLog
         {
             Id = 1,

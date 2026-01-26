@@ -89,24 +89,24 @@ public class BatchAuditServiceTests : TestBase
         var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
         var batch = new Batch { Id = 1, ProjectId = project.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-        
-        var audit1 = new BatchAuditLog 
-        { 
-            Id = 1, 
-            BatchId = 1, 
-            ChangedAt = DateTimeOffset.UtcNow.AddMinutes(-10), 
+
+        var audit1 = new BatchAuditLog
+        {
+            Id = 1,
+            BatchId = 1,
+            ChangedAt = DateTimeOffset.UtcNow.AddMinutes(-10),
             ChangedByUserId = "user1",
             OldStatus = null,
             NewStatus = BatchStatus.New,
             OldStage = null,
             NewStage = ProductionStage.Design
         };
-        
-        var audit2 = new BatchAuditLog 
-        { 
-            Id = 2, 
-            BatchId = 1, 
-            ChangedAt = DateTimeOffset.UtcNow.AddMinutes(-5), 
+
+        var audit2 = new BatchAuditLog
+        {
+            Id = 2,
+            BatchId = 1,
+            ChangedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
             ChangedByUserId = "user2",
             OldStatus = BatchStatus.New,
             NewStatus = BatchStatus.InProgress,
@@ -131,7 +131,7 @@ public class BatchAuditServiceTests : TestBase
         result.Value.Total.Should().Be(2);
         result.Value.Page.Should().Be(1);
         result.Value.PageSize.Should().Be(10);
-        
+
         // Should be ordered by ChangedAt descending
         result.Value.Items.First().Id.Should().Be(2);
         result.Value.Items.Last().Id.Should().Be(1);

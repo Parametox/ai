@@ -53,7 +53,7 @@ public class BatchServiceTests : TestBase
         // use long ids
         var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        
+
         var batch1 = new Batch { Id = 1, ProjectId = project.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
         var batch2 = new Batch { Id = 2, ProjectId = project.Id, BatchNo = 2, Status = BatchStatus.InProgress, Stage = ProductionStage.Print, UpdatedAt = DateTimeOffset.UtcNow };
 
@@ -103,13 +103,13 @@ public class BatchServiceTests : TestBase
     [Fact]
     public async Task GetKanbanAsync_SortByUpdatedAtDesc_ReturnsSortedResults()
     {
-         // Arrange
+        // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
 
         var order = new Order { Id = 100, OrderNumber = "ORD", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
         var project = new Project { Id = 100, OrderId = order.Id, ProjectNumber = "PRJ", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        
+
         var batchOld = new Batch { Id = 101, ProjectId = project.Id, BatchNo = 1, UpdatedAt = DateTimeOffset.UtcNow.AddHours(-2) };
         var batchNew = new Batch { Id = 102, ProjectId = project.Id, BatchNo = 2, UpdatedAt = DateTimeOffset.UtcNow };
 

@@ -40,7 +40,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var formats = db.ProductFormats.AsNoTracking();
 
             if (query.IsActive is not null)
@@ -92,7 +92,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var items = await db.ProductFormats.AsNoTracking()
                 .Where(x => x.IsActive)
                 .OrderBy(x => x.Name)
@@ -143,7 +143,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var now = DateTimeOffset.UtcNow;
             var entity = new ProductFormat
             {
@@ -203,7 +203,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var entity = await db.ProductFormats.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {
@@ -243,7 +243,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var entity = await db.ProductFormats.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {

@@ -42,7 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IBatchSplitRuleService, BatchSplitRuleService>();
 
         // Register AutoMapper
-        services.AddAutoMapper(cfg => {}, Assembly.GetExecutingAssembly());
+        services.AddAutoMapper(cfg => { }, Assembly.GetExecutingAssembly());
 
         // Register FluentValidation validators
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());

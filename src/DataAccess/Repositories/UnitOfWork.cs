@@ -8,7 +8,7 @@ public class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;
     private IDbContextTransaction? _transaction;
-    
+
     private IRepository<Order>? _orders;
     private IRepository<Project>? _projects;
     private IRepository<Batch>? _batches;

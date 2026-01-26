@@ -45,11 +45,11 @@ public sealed class AuthService : IAuthService
 
             // Pobierz role użytkownika
             var roles = await _userManager.GetRolesAsync(user);
-            
+
             // Ustawienie sesji w SessionService
             _sessionService.SetSession(user.Id, user.UserName ?? username, roles);
             _logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
-            
+
             return "/kanban";
         }
         catch (Exception ex)
@@ -70,7 +70,7 @@ public sealed class AuthService : IAuthService
         {
             _logger.LogError(ex, "Błąd podczas wylogowania użytkownika");
         }
-        
+
         return Task.CompletedTask;
     }
 }

@@ -60,7 +60,7 @@ public class AuthenticationTests : E2ETestBase
         // Assert - Powinien pozostać na stronie logowania z błędem
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(".*login.*"));
-        
+
         // Sprawdź czy jest komunikat o błędzie
         var errorMessage = Page.Locator(".alert-error, .mud-alert-error, [class*='error']");
         await Expect(errorMessage).ToBeVisibleAsync();
@@ -83,7 +83,7 @@ public class AuthenticationTests : E2ETestBase
     public async Task UnauthenticatedUser_IsRedirectedToLogin()
     {
         // Act - wyloguj + próba dostępu do chronionej strony
-        await LogoutAsync();        
+        await LogoutAsync();
         await NavigateToAsync("/kanban");
 
         // Assert - Powinien być przekierowany na login

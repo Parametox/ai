@@ -74,13 +74,13 @@ public abstract class E2ETestBase : IAsyncLifetime
     /// <summary>
     /// Logowanie jako Manager.
     /// </summary>
-    protected Task LoginAsManagerAsync() => 
+    protected Task LoginAsManagerAsync() =>
         LoginAsync(TestConfig.ManagerUser.Username, TestConfig.ManagerUser.Password);
 
     /// <summary>
     /// Logowanie jako Operator.
     /// </summary>
-    protected Task LoginAsOperatorAsync() => 
+    protected Task LoginAsOperatorAsync() =>
         LoginAsync(TestConfig.OperatorUser.Username, TestConfig.OperatorUser.Password);
 
     /// <summary>
@@ -108,6 +108,6 @@ public abstract class E2ETestBase : IAsyncLifetime
     /// <summary>
     /// Generuje unikalny numer zlecenia dla testów.
     /// </summary>
-    protected static string GenerateOrderNumber() => 
+    protected static string GenerateOrderNumber() =>
         $"E2E-{DateTime.Now:yyyyMMdd-HHmmss}-{Random.Shared.Next(1000, 9999)}";
 }

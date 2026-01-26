@@ -21,7 +21,7 @@ public sealed class DashboardService(IDbContextFactory<AppDbContext> dbFactory, 
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             // Dashboard operacyjny: liczymy na projektach aktywnych (is_completed=false), żeby nie zawyżać metryk.
             var activeProjectIds = db.Projects.AsNoTracking().Where(p => !p.IsCompleted).Select(p => p.Id);
 

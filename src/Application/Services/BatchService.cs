@@ -42,7 +42,7 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             // Projekcja join: batches + projects + orders (bez N+1).
             var baseQuery =
                 from b in db.Batches.AsNoTracking()
@@ -143,7 +143,7 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var batch = await db.Batches.SingleOrDefaultAsync(x => x.Id == batchId, ct);
             if (batch is null)
             {
@@ -186,39 +186,39 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
             try
             {
-            batch.Status = newStatus;
-            batch.UpdatedAt = now;
+                batch.Status = newStatus;
+                batch.UpdatedAt = now;
 
-            db.BatchAuditLog.Add(new BatchAuditLog
-            {
-                BatchId = batch.Id,
-                ChangedAt = now,
-                ChangedByUserId = currentUser.UserId!,
-                OldStatus = oldStatus,
-                NewStatus = newStatus,
-                OldStage = null,
-                NewStage = null
-            });
+                db.BatchAuditLog.Add(new BatchAuditLog
+                {
+                    BatchId = batch.Id,
+                    ChangedAt = now,
+                    ChangedByUserId = currentUser.UserId!,
+                    OldStatus = oldStatus,
+                    NewStatus = newStatus,
+                    OldStage = null,
+                    NewStage = null
+                });
 
-            await db.SaveChangesAsync(ct);
+                await db.SaveChangesAsync(ct);
 
-            var inProgressCount = await db.Batches.CountAsync(x => x.Status == BatchStatus.InProgress, ct);
-            var warningsAfter = CreateSoftLimitWarnings(inProgressCount);
+                var inProgressCount = await db.Batches.CountAsync(x => x.Status == BatchStatus.InProgress, ct);
+                var warningsAfter = CreateSoftLimitWarnings(inProgressCount);
 
-            if (tx is not null)
-            {
-                await tx.CommitAsync(ct);
-            }
+                if (tx is not null)
+                {
+                    await tx.CommitAsync(ct);
+                }
 
-            return Result<UpdateBatchStatusResult>.Ok(new UpdateBatchStatusResult(
-                BatchId: batch.Id,
-                OldStatus: oldStatus,
-                NewStatus: newStatus,
-                Stage: batch.Stage,
-                UpdatedAt: batch.UpdatedAt,
-                InProgressCount: inProgressCount,
-                Warnings: warningsAfter
-            ));
+                return Result<UpdateBatchStatusResult>.Ok(new UpdateBatchStatusResult(
+                    BatchId: batch.Id,
+                    OldStatus: oldStatus,
+                    NewStatus: newStatus,
+                    Stage: batch.Stage,
+                    UpdatedAt: batch.UpdatedAt,
+                    InProgressCount: inProgressCount,
+                    Warnings: warningsAfter
+                ));
             }
             finally
             {
@@ -267,7 +267,7 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var batch = await db.Batches.SingleOrDefaultAsync(x => x.Id == batchId, ct);
             if (batch is null)
             {
@@ -305,34 +305,34 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
             try
             {
-            batch.Stage = newStage;
-            batch.UpdatedAt = now;
+                batch.Stage = newStage;
+                batch.UpdatedAt = now;
 
-            db.BatchAuditLog.Add(new BatchAuditLog
-            {
-                BatchId = batch.Id,
-                ChangedAt = now,
-                ChangedByUserId = currentUser.UserId!,
-                OldStatus = null,
-                NewStatus = null,
-                OldStage = oldStage,
-                NewStage = newStage
-            });
+                db.BatchAuditLog.Add(new BatchAuditLog
+                {
+                    BatchId = batch.Id,
+                    ChangedAt = now,
+                    ChangedByUserId = currentUser.UserId!,
+                    OldStatus = null,
+                    NewStatus = null,
+                    OldStage = oldStage,
+                    NewStage = newStage
+                });
 
-            await db.SaveChangesAsync(ct);
-            if (tx is not null)
-            {
-                await tx.CommitAsync(ct);
-            }
+                await db.SaveChangesAsync(ct);
+                if (tx is not null)
+                {
+                    await tx.CommitAsync(ct);
+                }
 
-            return Result<UpdateBatchStageResult>.Ok(new UpdateBatchStageResult(
-                BatchId: batch.Id,
-                OldStage: oldStage,
-                NewStage: newStage,
-                Status: batch.Status,
-                ProgressPercent: ProgressPercentFromStage(batch.Stage),
-                UpdatedAt: batch.UpdatedAt
-            ));
+                return Result<UpdateBatchStageResult>.Ok(new UpdateBatchStageResult(
+                    BatchId: batch.Id,
+                    OldStage: oldStage,
+                    NewStage: newStage,
+                    Status: batch.Status,
+                    ProgressPercent: ProgressPercentFromStage(batch.Stage),
+                    UpdatedAt: batch.UpdatedAt
+                ));
             }
             finally
             {
@@ -369,7 +369,7 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var count = await db.Batches.AsNoTracking().CountAsync(x => x.Status == BatchStatus.InProgress, ct);
             return Result<int>.Ok(count);
         }

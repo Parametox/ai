@@ -22,7 +22,7 @@ public sealed class OrderService : IOrderService
     private readonly IMapper _mapper;
 
     public OrderService(
-        IDbContextFactory<AppDbContext> dbFactory, 
+        IDbContextFactory<AppDbContext> dbFactory,
         ICurrentUser currentUser,
         IValidator<CreateOrderRequest> createOrderValidator,
         IMapper mapper)
@@ -56,9 +56,9 @@ public sealed class OrderService : IOrderService
             var errors = validationResult.Errors
                 .GroupBy(e => e.PropertyName)
                 .ToDictionary(
-                    g => g.Key, 
+                    g => g.Key,
                     g => (IReadOnlyList<string>)g.Select(e => e.ErrorMessage).ToList());
-            
+
             return Result<CreateOrderResult>.Fail(
                 AppError.ValidationFailed("Nieprawidłowe dane wejściowe.", errors));
         }
@@ -69,7 +69,7 @@ public sealed class OrderService : IOrderService
         {
             await using var db = await _dbFactory.CreateDbContextAsync(ct);
             using var unitOfWork = new UnitOfWork(db);
-            
+
             var productFormat = await unitOfWork.ProductFormats.SingleOrDefaultAsync(x => x.Id == normalized.ProductFormatId, ct);
             if (productFormat is null)
             {
@@ -194,7 +194,7 @@ public sealed class OrderService : IOrderService
         try
         {
             await using var db = await _dbFactory.CreateDbContextAsync(ct);
-            
+
             var baseQuery =
                 from o in db.Orders.AsNoTracking()
                 join pf in db.ProductFormats.AsNoTracking() on o.ProductFormatId equals pf.Id
@@ -265,7 +265,7 @@ public sealed class OrderService : IOrderService
         try
         {
             await using var db = await _dbFactory.CreateDbContextAsync(ct);
-            
+
             var header = await (
                 from o in db.Orders.AsNoTracking()
                 join pf in db.ProductFormats.AsNoTracking() on o.ProductFormatId equals pf.Id
@@ -333,7 +333,7 @@ public sealed class OrderService : IOrderService
             .OrderByDescending(r => r.MinQty)
             .ThenBy(r => r.MaxQty == null ? int.MaxValue : r.MaxQty.Value)
             .ToListAsync(ct);
-        
+
         return rules.FirstOrDefault();
     }
 
@@ -342,7 +342,7 @@ public sealed class OrderService : IOrderService
         // Maksymalny rozmiar batcha = Percent * MaxQty (lub MaxQty z reguły, lub orderQty jako fallback)
         var referenceQty = splitRule.MaxQty ?? orderQty;
         var maxBatchSize = (int)Math.Ceiling(referenceQty * (double)splitRule.Percent);
-        
+
         // MaxBatchSize nie może być mniejszy niż MinBatchSize
         maxBatchSize = Math.Max(maxBatchSize, splitRule.MinBatchSize);
 

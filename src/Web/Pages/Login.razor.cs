@@ -32,7 +32,7 @@ public partial class Login
         try
         {
             var result = await AuthService.LoginAsync(_loginModel.Username, _loginModel.Password);
-            
+
             if (!string.IsNullOrEmpty(result))
             {
                 // Przekierowanie na kanban

@@ -62,7 +62,7 @@ public class ManagerDashboardTests : E2ETestBase
         // Arrange
         await LoginAsManagerAsync();
         await NavigateToAsync("/manager/dashboard");
-        
+
         // Act - Przejdź do zakładki Historia zleceń
         var historyTab = Page.Locator("text=Historia zleceń").First;
         await historyTab.ClickAsync();

@@ -39,7 +39,7 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var baseQuery =
                 from p in db.Projects.AsNoTracking()
                 join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
@@ -96,7 +96,7 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var header = await (
                 from p in db.Projects.AsNoTracking()
                 join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
@@ -179,7 +179,7 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var project = await db.Projects.SingleOrDefaultAsync(x => x.Id == projectId, ct);
             if (project is null)
             {
@@ -285,7 +285,7 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var project = await db.Projects.SingleOrDefaultAsync(x => x.Id == projectId, ct);
             if (project is null)
             {
@@ -314,7 +314,7 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
                     var auditLogs = await db.BatchAuditLog
                         .Where(x => batchIds.Contains(x.BatchId))
                         .ToListAsync(ct);
-                    
+
                     if (auditLogs.Any())
                     {
                         db.BatchAuditLog.RemoveRange(auditLogs);
@@ -351,7 +351,7 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
         catch (DbUpdateException ex)
         {
             return Result.Fail(
-                AppError.Conflict("Nie udało się usunąć projektu (konflikt lub naruszenie ograniczeń danych)."+ ex.Message));
+                AppError.Conflict("Nie udało się usunąć projektu (konflikt lub naruszenie ograniczeń danych)." + ex.Message));
         }
         catch (Exception)
         {

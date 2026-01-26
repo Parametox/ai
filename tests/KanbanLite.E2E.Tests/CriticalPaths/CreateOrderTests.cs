@@ -41,7 +41,7 @@ public class CreateOrderTests : E2ETestBase
         // Wybierz datę (MudDatePicker)
         // Trying GetByLabel which is more robust for MudBlazor inputs if id/for match
         var dateInput = Page.GetByLabel("Termin realizacji");
-        
+
         // Remove readonly if present just in case
         await dateInput.EvaluateAsync("input => input.removeAttribute('readonly')");
         await dateInput.FillAsync(dueDate.ToString("dd.MM.yyyy"));
@@ -54,7 +54,7 @@ public class CreateOrderTests : E2ETestBase
 
         // Assert - Poczekaj na przekierowanie lub komunikat sukcesu
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        
+
         // Sprawdź czy pojawił się snackbar z sukcesem lub przekierowano na kanban
         var successIndicator = Page.Locator(".mud-snackbar-success")
             .Or(Page.Locator("text=utworzon"))
@@ -92,11 +92,11 @@ public class CreateOrderTests : E2ETestBase
         // Act & Assert
         var createOrderLink = Page.GetByTestId("nav-create-order");
         await Expect(createOrderLink).ToBeVisibleAsync();
-        
+
         // Kliknij i sprawdź nawigację
         await createOrderLink.ClickAsync();
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        
+
         var createOrderForm = Page.GetByTestId("create-order-form");
         await Expect(createOrderForm).ToBeVisibleAsync();
     }

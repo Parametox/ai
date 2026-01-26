@@ -58,12 +58,12 @@ public sealed class AuthController : ControllerBase
         _sessionService.SetSession(user.Id, user.UserName ?? username, roles);
 
         _logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
-        
+
         // Przekieruj na ReturnUrl lub domyślnie na /kanban
         var redirectUrl = !string.IsNullOrEmpty(returnUrl) && returnUrl != "/"
             ? returnUrl
             : "/kanban";
-        
+
         return Redirect(redirectUrl);
     }
 

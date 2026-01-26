@@ -10,7 +10,7 @@ namespace KanbanLite.Web.Pages.Manager;
 public partial class CreateOrder
 {
     [Inject] private ISessionService SessionService { get; set; } = null!;
-    
+
     private CreateOrderFormModel formModel = new();
     private DateTime? selectedDueDate = DateTime.Now.AddDays(7);
     private DateTime minDueDate = DateTime.Now.AddDays(7);
@@ -25,13 +25,13 @@ public partial class CreateOrder
             Navigation.NavigateTo("/login", replace: true);
             return;
         }
-        
+
         if (!SessionService.IsInRole("Manager"))
         {
             Navigation.NavigateTo("/kanban", replace: true);
             return;
         }
-        
+
         try
         {
             var result = await ProductFormatService.GetActiveLookupAsync();
@@ -133,7 +133,7 @@ public partial class CreateOrder
 
         var dueDate = DateOnly.FromDateTime(selectedDueDate.Value);
         var minDate = DateOnly.FromDateTime(DateTime.Now.AddDays(7));
-        
+
         if (dueDate < minDate)
         {
             validationMessage = "Termin realizacji musi być co najmniej 7 dni od dzisiaj.";

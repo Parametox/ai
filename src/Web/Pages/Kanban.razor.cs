@@ -31,9 +31,9 @@ public partial class Kanban : ComponentBase, IDisposable
             Navigation.NavigateTo("/login", replace: true);
             return;
         }
-        
+
         await LoadDataAsync();
-        
+
         // Timer odświeżania licznika co 30 sekund
         _refreshTimer = new Timer(async _ => await InvokeAsync(async () => await RefreshInProgressCount()), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
@@ -46,12 +46,12 @@ public partial class Kanban : ComponentBase, IDisposable
             StateHasChanged();
 
             var result = await BatchService.GetKanbanAsync(_query);
-            
+
             if (result.IsSuccess)
             {
                 _batches = result.Value;
                 _inProgressCount = result.Value?.InProgressCount ?? 0;
-                
+
                 // Wyświetlenie ostrzeżeń jeśli są
                 if (result.Value?.Warnings.Any() == true)
                 {
@@ -118,7 +118,7 @@ public partial class Kanban : ComponentBase, IDisposable
         {
             // Debouncing 300ms
             await Task.Delay(300, _searchCts.Token);
-            
+
             _query = _query with { Q = string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim(), Page = 1 };
             await LoadDataAsync();
         }
@@ -147,7 +147,7 @@ public partial class Kanban : ComponentBase, IDisposable
             if (result.IsSuccess)
             {
                 _inProgressCount = result.Value!.InProgressCount;
-                
+
                 // Wyświetlenie ostrzeżeń jeśli są
                 if (result.Value.Warnings.Any())
                 {
@@ -194,7 +194,7 @@ public partial class Kanban : ComponentBase, IDisposable
             if (result.IsSuccess)
             {
                 Snackbar.Add("Etap batcha został zaktualizowany", Severity.Success);
-                
+
                 // Odświeżenie tabeli
                 await LoadDataAsync();
             }

@@ -13,13 +13,13 @@ public partial class NavMenu
     private async Task HandleLogout()
     {
         await AuthService.LogoutAsync();
-        
+
         // Powiadom o zmianie stanu autentykacji
         if (AuthStateProvider is RevalidatingIdentityAuthenticationStateProvider<DataAccess.Identity.ApplicationUser> provider)
         {
             provider.NotifyAuthenticationStateChanged();
         }
-        
+
         NavigationManager.NavigateTo("/login", forceLoad: false);
     }
 }

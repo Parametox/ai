@@ -21,7 +21,7 @@ public abstract class TestBase : IDisposable
 
         DbFactory = Substitute.For<IDbContextFactory<AppDbContext>>();
         DbFactory.CreateDbContextAsync(Arg.Any<CancellationToken>())
-            .Returns(_ => new AppDbContext(options)); 
+            .Returns(_ => new AppDbContext(options));
         // Note: Creating a new context each time to simulate factory behavior, 
         // but pointing to same InMemory DB.
 

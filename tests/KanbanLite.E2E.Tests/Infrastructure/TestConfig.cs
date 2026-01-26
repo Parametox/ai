@@ -18,35 +18,35 @@ public static class TestConfig
         configFileName = "appsettings.e2e.Release.json";
 #endif
         var path = Path.Combine(AppContext.BaseDirectory, configFileName);
-        
+
         if (!File.Exists(path))
         {
             throw new FileNotFoundException($"Configuration file not found at {path}");
         }
 
         var json = File.ReadAllText(path);
-        _settings = JsonSerializer.Deserialize<TestSettings>(json) 
+        _settings = JsonSerializer.Deserialize<TestSettings>(json)
                     ?? throw new InvalidOperationException("Failed to deserialize configuration.");
 
         // Walidacja
-        if (string.IsNullOrWhiteSpace(_settings.BaseUrl)) 
+        if (string.IsNullOrWhiteSpace(_settings.BaseUrl))
             throw new InvalidOperationException("BaseUrl is missing in config.");
-            
+
         if (_settings.ManagerUser == null || string.IsNullOrWhiteSpace(_settings.ManagerUser.Username) || string.IsNullOrWhiteSpace(_settings.ManagerUser.Password))
             throw new InvalidOperationException("ManagerUser configuration is incomplete.");
-            
+
         if (_settings.OperatorUser == null || string.IsNullOrWhiteSpace(_settings.OperatorUser.Username) || string.IsNullOrWhiteSpace(_settings.OperatorUser.Password))
             throw new InvalidOperationException("OperatorUser configuration is incomplete.");
-        
+
         if (_settings.Supabase == null || string.IsNullOrWhiteSpace(_settings.Supabase.Url) || string.IsNullOrWhiteSpace(_settings.Supabase.Key))
-             throw new InvalidOperationException("Supabase configuration is incomplete.");
+            throw new InvalidOperationException("Supabase configuration is incomplete.");
     }
 
     /// <summary>
     /// Bazowy URL aplikacji do testowania.
     /// </summary>
     public static string BaseUrl => _settings.BaseUrl!;
-    
+
     public static bool Headless => _settings.Headless;
     public static int SlowMo => _settings.SlowMo;
 
@@ -103,7 +103,7 @@ public static class TestConfig
         public string? Password { get; set; }
     }
 
-    public class SupabaseSettings 
+    public class SupabaseSettings
     {
         public string? Url { get; set; }
         public string? Key { get; set; }

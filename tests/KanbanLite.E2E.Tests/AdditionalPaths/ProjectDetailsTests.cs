@@ -20,7 +20,7 @@ public class ProjectDetailsTests : E2ETestBase
 
         // Act - Kliknij pierwszy link do projektu
         var projectLink = Page.Locator("a[href^='/project/']").First;
-        
+
         if (await projectLink.IsVisibleAsync())
         {
             await projectLink.ClickAsync();
@@ -48,7 +48,7 @@ public class ProjectDetailsTests : E2ETestBase
 
         // Act
         var projectLink = Page.Locator("a[href^='/project/']").First;
-        
+
         if (await projectLink.IsVisibleAsync())
         {
             await projectLink.ClickAsync();
@@ -70,7 +70,7 @@ public class ProjectDetailsTests : E2ETestBase
 
         // Act
         var projectLink = Page.Locator("a[href^='/project/']").First;
-        
+
         if (await projectLink.IsVisibleAsync())
         {
             await projectLink.ClickAsync();
@@ -92,7 +92,7 @@ public class ProjectDetailsTests : E2ETestBase
 
         // Act
         var projectLink = Page.Locator("a[href^='/project/']").First;
-        
+
         if (await projectLink.IsVisibleAsync())
         {
             await projectLink.ClickAsync();

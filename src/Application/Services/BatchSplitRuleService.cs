@@ -30,7 +30,7 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var q = db.BatchSplitRules.AsNoTracking();
             if (query.IsActive is not null)
             {
@@ -93,7 +93,7 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             if (request.IsActive)
             {
                 var overlapError = await ValidateNoOverlapAsync(db, excludeId: null, request.MinQty, request.MaxQty, ct);
@@ -162,7 +162,7 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var entity = await db.BatchSplitRules.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {
@@ -216,7 +216,7 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var entity = await db.BatchSplitRules.SingleOrDefaultAsync(x => x.Id == id, ct);
             if (entity is null)
             {

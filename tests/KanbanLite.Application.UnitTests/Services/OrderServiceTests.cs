@@ -40,7 +40,7 @@ public class OrderServiceTests : TestBase
     [Fact]
     public async Task CreateAsync_WithInvalidRequest_ReturnsValidationFailed()
     {
-         // Arrange
+        // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
 
@@ -65,10 +65,10 @@ public class OrderServiceTests : TestBase
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
-        
+
         _createOrderValidator.ValidateAsync(Arg.Any<CreateOrderRequest>(), Arg.Any<CancellationToken>())
             .Returns(new FluentValidation.Results.ValidationResult());
-        
+
         var formatId = 10L;
         DbContext.ProductFormats.Add(new ProductFormat { Id = formatId, Name = "A5", IsActive = false });
         await DbContext.SaveChangesAsync();
@@ -89,10 +89,10 @@ public class OrderServiceTests : TestBase
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
-        
+
         _createOrderValidator.ValidateAsync(Arg.Any<CreateOrderRequest>(), Arg.Any<CancellationToken>())
             .Returns(new FluentValidation.Results.ValidationResult());
-        
+
         var formatId = 20L;
         DbContext.ProductFormats.Add(new ProductFormat { Id = formatId, Name = "A5", IsActive = true });
         // No split rules in DB
@@ -114,20 +114,20 @@ public class OrderServiceTests : TestBase
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
-        
+
         _createOrderValidator.ValidateAsync(Arg.Any<CreateOrderRequest>(), Arg.Any<CancellationToken>())
             .Returns(new FluentValidation.Results.ValidationResult());
-        
+
         var formatId = 30L;
         DbContext.ProductFormats.Add(new ProductFormat { Id = formatId, Name = "A5", IsActive = true });
-        
-        DbContext.BatchSplitRules.Add(new BatchSplitRule 
-        { 
-            Id = 1, 
-            MinQty = 1, 
-            MaxQty = 100, 
-            Percent = 0.5m, 
-            MinBatchSize = 10 
+
+        DbContext.BatchSplitRules.Add(new BatchSplitRule
+        {
+            Id = 1,
+            MinQty = 1,
+            MaxQty = 100,
+            Percent = 0.5m,
+            MinBatchSize = 10
         });
         await DbContext.SaveChangesAsync();
         // MaxQty=100. Percent=0.5 -> maxBatchSize = 50.
@@ -140,14 +140,14 @@ public class OrderServiceTests : TestBase
 
         // Assert
         result.IsSuccess.Should().BeTrue();
-        
+
         var order = DbContext.Orders.FirstOrDefault(x => x.OrderNumber == "ORD-2026-001");
         order.Should().NotBeNull();
         order!.Quantity.Should().Be(80);
 
         var project = DbContext.Projects.FirstOrDefault(x => x.OrderId == order.Id);
         project.Should().NotBeNull();
-        project!.ProjectNumber.Should().Be("PRJ-2026-001"); 
+        project!.ProjectNumber.Should().Be("PRJ-2026-001");
 
         var batches = DbContext.Batches.Where(x => x.ProjectId == project.Id).ToList();
         batches.Should().HaveCount(2);

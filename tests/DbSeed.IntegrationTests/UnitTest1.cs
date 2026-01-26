@@ -23,7 +23,7 @@ public sealed class IdentitySeedTests
 
         // Inicjalizacja Supabase Client (opcjonalnie, jeśli chcesz używać go zamiast EF Core)
         var supabaseUrl = "https://fntdzqdxfbddesaijpdr.supabase.co";
-        var supabaseKey = "sb_publishable_j9ivqerfdqVOXkgTun7sLg__jZgxnaq"; 
+        var supabaseKey = "sb_publishable_j9ivqerfdqVOXkgTun7sLg__jZgxnaq";
         var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
         var supabaseClient = new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions);
         await supabaseClient.InitializeAsync();

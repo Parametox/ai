@@ -29,7 +29,7 @@ public partial class Project
             Navigation.NavigateTo("/login", replace: true);
             return;
         }
-        
+
         await LoadProjectAsync();
         _isManager = SessionService.IsInRole("Manager");
     }
@@ -52,7 +52,7 @@ public partial class Project
         try
         {
             var result = await ProjectService.GetByIdAsync(Id);
-            
+
             if (result.IsSuccess)
             {
                 _project = result.Value;
@@ -84,7 +84,7 @@ public partial class Project
         try
         {
             var result = await ProjectService.ShipToCustomerAsync(_project.Id);
-            
+
             if (result.IsSuccess)
             {
                 Snackbar.Add("Projekt został wysłany do klienta.", Severity.Success);

@@ -41,7 +41,7 @@ public sealed class BatchAuditService(IDbContextFactory<AppDbContext> dbFactory,
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
+
             var batchExists = await db.Batches.AsNoTracking().AnyAsync(x => x.Id == batchId, ct);
             if (!batchExists)
             {

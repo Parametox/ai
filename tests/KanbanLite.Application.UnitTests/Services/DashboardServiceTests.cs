@@ -40,7 +40,7 @@ public class DashboardServiceTests : TestBase
 
         var order = new Order { Id = 1, OrderNumber = "ORD", DueDate = DateOnly.FromDateTime(DateTime.Today.AddDays(10)), CreatedAt = DateTimeOffset.UtcNow };
         var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        
+
         var b1 = new Batch { Id = 1, ProjectId = project.Id, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
         var b2 = new Batch { Id = 2, ProjectId = project.Id, Status = BatchStatus.InProgress, Stage = ProductionStage.Print, UpdatedAt = DateTimeOffset.UtcNow };
         var b3 = new Batch { Id = 3, ProjectId = project.Id, Status = BatchStatus.Done, Stage = ProductionStage.Ship, UpdatedAt = DateTimeOffset.UtcNow };
@@ -56,7 +56,7 @@ public class DashboardServiceTests : TestBase
         // Assert
         result.IsSuccess.Should().BeTrue();
         var dto = result.Value;
-        
+
         dto.CountsByStatus[BatchStatus.New].Should().Be(1);
         dto.CountsByStatus[BatchStatus.InProgress].Should().Be(1);
         dto.CountsByStatus[BatchStatus.Done].Should().Be(1);
@@ -79,12 +79,12 @@ public class DashboardServiceTests : TestBase
         DbContext.Projects.Add(project);
 
         // Add 21 InProgress batches
-        var batches = Enumerable.Range(100, 21).Select(i => new Batch 
-        { 
-            Id = (long)i, 
-            ProjectId = project.Id, 
-            Status = BatchStatus.InProgress, 
-            Stage = ProductionStage.Print 
+        var batches = Enumerable.Range(100, 21).Select(i => new Batch
+        {
+            Id = (long)i,
+            ProjectId = project.Id,
+            Status = BatchStatus.InProgress,
+            Stage = ProductionStage.Print
         });
         DbContext.Batches.AddRange(batches);
         await DbContext.SaveChangesAsync();

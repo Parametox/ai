@@ -11,13 +11,13 @@ public interface IRepository<T> where T : class
     Task<bool> AnyAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
     Task<int> CountAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
     Task<long> LongCountAsync(Expression<Func<T, bool>> predicate, CancellationToken ct = default);
-    
+
     void Add(T entity);
     void AddRange(IEnumerable<T> entities);
     void Update(T entity);
     void Remove(T entity);
     void RemoveRange(IEnumerable<T> entities);
-    
+
     IQueryable<T> Query();
     IQueryable<T> QueryNoTracking();
 }

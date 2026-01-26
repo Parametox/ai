@@ -6,7 +6,7 @@ public interface ISessionService
     string? Username { get; }
     string? UserId { get; }
     IReadOnlyList<string> Roles { get; }
-    
+
     void SetSession(string userId, string username, IEnumerable<string> roles);
     void ClearSession();
     bool IsInRole(string roleName);
