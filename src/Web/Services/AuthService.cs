@@ -74,7 +74,7 @@ public sealed class AuthService : IAuthService
     {
         try
         {
-            _sessionService.ClearSession();            
+            _sessionService.ClearSession();
             // Powiadom o zmianie stanu autoryzacji
             if (_authenticationStateProvider is RevalidatingIdentityAuthenticationStateProvider<ApplicationUser> customProvider)
             {
