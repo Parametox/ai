@@ -64,29 +64,49 @@ public abstract class E2ETestBase : IAsyncLifetime
         await loginButton.ClickAsync();
 
         // Zmiana strategii oczekiwania dla Blazor Server:
-        // Zamiast czekać na Load (który może nie nadejść lub trwać długo), czekamy na URL
-        // z opcją Commit (serwer zaczął odpowiadać) LUB od razu na element interfejsu (Wyloguj).
+        // Oczekujemy na URL (sukces) LUB komunikat błędu (porażka logowania).
+        var navigationTask = Page.WaitForURLAsync(url => !url.Contains("/login"), new PageWaitForURLOptions
+        {
+            WaitUntil = WaitUntilState.Commit,
+            Timeout = TestConfig.Timeouts.NavigationTimeout
+        });
 
+        var errorTask = Page.Locator(".alert-error").WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = TestConfig.Timeouts.NavigationTimeout
+        });
+
+        var completedTask = await Task.WhenAny(navigationTask, errorTask);
+
+        if (completedTask == errorTask && errorTask.IsCompletedSuccessfully)
+        {
+            var errorText = await Page.Locator(".alert-error").InnerTextAsync();
+            throw new Exception($"Login failed with UI error: {errorText}");
+        }
+
+        // Jeśli nawigacja wygrała lub nastąpił timeout błędów -> czekaj na nawigację
         try
         {
-            await Page.WaitForURLAsync(url => !url.Contains("/login"), new PageWaitForURLOptions
-            {
-                WaitUntil = WaitUntilState.Commit,
-                Timeout = TestConfig.Timeouts.NavigationTimeout
-            });
-
-            // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
-            await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions
-            {
-                State = WaitForSelectorState.Visible,
-                Timeout = TestConfig.Timeouts.NavigationTimeout
-            });
+            await navigationTask;
         }
         catch (TimeoutException)
         {
-            // Opcjonalne logowanie stanu w przypadku błędu
-            throw new Exception($"Login Timeout. Current URL: {Page.Url}");
+            // Ostatnie sprawdzenie błędu przed rzuceniem timeoutu
+            if (await Page.Locator(".alert-error").IsVisibleAsync())
+            {
+               var errorText = await Page.Locator(".alert-error").InnerTextAsync();
+               throw new Exception($"Login failed: {errorText}");
+            }
+            throw new Exception($"Login Timeout. Current URL: {Page.Url}. Ensure the database is seeded with test users.");
         }
+            
+        // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
+        await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions 
+        { 
+            State = WaitForSelectorState.Visible,
+            Timeout = TestConfig.Timeouts.NavigationTimeout 
+        });
     }
 
     /// <summary>
