@@ -39,8 +39,8 @@ var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = isDev
 builder.Services.AddScoped<Supabase.Client>(_ => new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions));
 
 // DataAccess - AppDbContext z DbContextFactory dla Blazor Server
-var connectionString = builder.Configuration.GetConnectionString("KanbanConnectionString") ?? Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
-    ?? throw new InvalidOperationException("Connection string 'KanbanConnectionString' not found.");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 // Używamy DbContextFactory dla Blazor Server - rozwiązuje problem disposed context
 // AddDbContextFactory automatycznie rejestruje też AppDbContext jako scoped dla Identity

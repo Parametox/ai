@@ -64,7 +64,7 @@ public sealed class AuthService : IAuthService
                 customProvider.NotifyAuthenticationStateChanged();
             }
 
-            _logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
+            //_logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
 
             return "/kanban";
         }

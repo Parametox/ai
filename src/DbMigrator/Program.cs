@@ -15,8 +15,8 @@ var configuration = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .Build();
 
-var connectionString = configuration.GetConnectionString("KanbanConnectionString")
-    ?? throw new InvalidOperationException("Connection string 'KanbanConnectionString' not found.");
+var connectionString = configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 // Inicjalizacja Supabase Client
 var supabaseUrl = configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase Url not found.");
