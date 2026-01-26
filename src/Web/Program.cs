@@ -87,8 +87,8 @@ builder.Services.AddAuthorization();
 // Blazor Server Authentication State Provider
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<ApplicationUser>>();
 
-// Session Service - Singleton dla zarządzania sesją użytkownika
-builder.Services.AddSingleton<ISessionService, SessionService>();
+// Session Service - Scoped dla zarządzania sesją użytkownika (per circuit)
+builder.Services.AddScoped<ISessionService, SessionService>();
 
 // Application layer
 builder.Services.AddHttpContextAccessor();

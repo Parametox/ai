@@ -1,4 +1,5 @@
 using DataAccess.Identity;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 
 namespace KanbanLite.Web.Services;
@@ -7,15 +8,18 @@ public sealed class AuthService : IAuthService
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ISessionService _sessionService;
+    private readonly AuthenticationStateProvider _authenticationStateProvider;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         ISessionService sessionService,
+        AuthenticationStateProvider authenticationStateProvider,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
         _sessionService = sessionService;
+        _authenticationStateProvider = authenticationStateProvider;
         _logger = logger;
     }
 
@@ -48,6 +52,13 @@ public sealed class AuthService : IAuthService
 
             // Ustawienie sesji w SessionService
             _sessionService.SetSession(user.Id, user.UserName ?? username, roles);
+
+            // Powiadom o zmianie stanu autoryzacji
+            if (_authenticationStateProvider is RevalidatingIdentityAuthenticationStateProvider<ApplicationUser> customProvider)
+            {
+                customProvider.NotifyAuthenticationStateChanged();
+            }
+
             _logger.LogInformation("Użytkownik {Username} zalogował się pomyślnie", username);
 
             return "/kanban";
@@ -63,7 +74,12 @@ public sealed class AuthService : IAuthService
     {
         try
         {
-            _sessionService.ClearSession();
+            _sessionService.ClearSession();            
+            // Powiadom o zmianie stanu autoryzacji
+            if (_authenticationStateProvider is RevalidatingIdentityAuthenticationStateProvider<ApplicationUser> customProvider)
+            {
+                customProvider.NotifyAuthenticationStateChanged();
+            }
             _logger.LogInformation("Użytkownik wylogował się");
         }
         catch (Exception ex)
