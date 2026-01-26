@@ -99,6 +99,8 @@ public abstract class E2ETestBase : IAsyncLifetime
                 throw new Exception($"Login failed: {errorText}. Credentials used: Username='{username}', Password='{password}'");
             }
             throw new Exception($"Login Timeout. Current URL: {Page.Url}. Ensure the database is seeded with test users. Credentials used: Username='{username}', Password='{password}'");
+        }
+    }
     protected Task LoginAsOperatorAsync() =>
         LoginAsync(TestConfig.OperatorUser.Username, TestConfig.OperatorUser.Password);
 

@@ -125,7 +125,7 @@ jobs:
           sleep 15
         env:
           ConnectionStrings__KanbanConnectionString: ${{ secrets.SUPABASE_CONNECTIONSTRING_KEY }}
-          Supabase__Url: "https://fntdzqdxfbddesaijpdr.supabase.co"
+          Supabase__Url: ${{ secrets.SUPABASE_URL }}
           Supabase__Key: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           ASPNETCORE_ENVIRONMENT: Production
 
