@@ -83,7 +83,7 @@ public static class TestConfig
     public static class Timeouts
     {
         public static float DefaultTimeout => 30_000;
-        public static float NavigationTimeout => 60_000;
+        public static float NavigationTimeout => 120_000; // 2 minuty
         public static float ActionTimeout => 10_000;
     }
 

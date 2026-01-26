@@ -63,12 +63,30 @@ public abstract class E2ETestBase : IAsyncLifetime
         await passwordInput.FillAsync(password);
         await loginButton.ClickAsync();
 
-        // Poczekaj na zalogowanie (przekierowanie z /login)
-        await Page.WaitForURLAsync(url => !url.Contains("/login"), new PageWaitForURLOptions
+        // Zmiana strategii oczekiwania dla Blazor Server:
+        // Zamiast czekać na Load (który może nie nadejść lub trwać długo), czekamy na URL
+        // z opcją Commit (serwer zaczął odpowiadać) LUB od razu na element interfejsu (Wyloguj).
+        
+        try 
         {
-            Timeout = TestConfig.Timeouts.NavigationTimeout
-        });
-        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Page.WaitForURLAsync(url => !url.Contains("/login"), new PageWaitForURLOptions
+            {
+                WaitUntil = WaitUntilState.Commit,
+                Timeout = TestConfig.Timeouts.NavigationTimeout
+            });
+            
+            // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
+            await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions 
+            { 
+                State = WaitForSelectorState.Visible,
+                Timeout = TestConfig.Timeouts.NavigationTimeout 
+            });
+        }
+        catch (TimeoutException)
+        {
+            // Opcjonalne logowanie stanu w przypadku błędu
+            throw new Exception($"Login Timeout. Current URL: {Page.Url}");
+        }
     }
 
     /// <summary>

@@ -92,6 +92,7 @@ jobs:
   e2e-test:
     runs-on: ubuntu-latest
     name: E2E Tests
+    timeout-minutes: 10
     needs: lint
 
     steps:
@@ -119,7 +120,7 @@ jobs:
 
       - name: Start application in background
         run: |
-          dotnet run --project src/Web --configuration Release --urls "http://localhost:5145" &
+          dotnet run --project src/Web --configuration Release --no-launch-profile --urls "http://localhost:5145" &
           echo $! > app.pid
           sleep 15
         env:
