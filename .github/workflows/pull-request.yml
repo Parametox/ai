@@ -125,7 +125,7 @@ jobs:
         env:
           ConnectionStrings__KanbanConnectionString: ${{ secrets.SUPABASE_CONNECTION_STRING }}
           Supabase__Url: "https://fntdzqdxfbddesaijpdr.supabase.co"
-          Supabase__Key: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          Supabase__Key: "sb_publishable_j9ivqerfdqVOXkgTun7sLg__jZgxnaq"
           ASPNETCORE_ENVIRONMENT: Production
 
       - name: Wait for application to be ready
