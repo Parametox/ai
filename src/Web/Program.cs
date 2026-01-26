@@ -141,6 +141,9 @@ app.UseAuthorization();
 // Mapowanie kontrolerów (AuthController dla Cookie Bridge)
 app.MapControllers();
 
+// Health check endpoint dla Docker/Kubernetes
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
 // Wyłączenie anti-forgery dla Razor Components - wszystko działa przez SignalR, CSRF nie dotyczy
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
