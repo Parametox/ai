@@ -95,17 +95,17 @@ public abstract class E2ETestBase : IAsyncLifetime
             // Ostatnie sprawdzenie błędu przed rzuceniem timeoutu
             if (await Page.Locator(".alert-error").IsVisibleAsync())
             {
-               var errorText = await Page.Locator(".alert-error").InnerTextAsync();
-               throw new Exception($"Login failed: {errorText}");
+                var errorText = await Page.Locator(".alert-error").InnerTextAsync();
+                throw new Exception($"Login failed: {errorText}");
             }
             throw new Exception($"Login Timeout. Current URL: {Page.Url}. Ensure the database is seeded with test users.");
         }
-            
+
         // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
-        await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions 
-        { 
+        await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions
+        {
             State = WaitForSelectorState.Visible,
-            Timeout = TestConfig.Timeouts.NavigationTimeout 
+            Timeout = TestConfig.Timeouts.NavigationTimeout
         });
     }
 
