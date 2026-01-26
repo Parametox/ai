@@ -94,7 +94,7 @@ builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddHttpContextAccessor();
 // ICurrentUser oparty na SessionService zamiast ClaimsPrincipal
 builder.Services.AddScoped<ICurrentUser, SessionCurrentUser>();
-builder.Services.AddKanbanLiteApplication();
+builder.Services.AddKanbanLiteApplication(builder.Configuration);
 
 // Auth Service - używa UserManager + SessionService
 builder.Services.AddScoped<IAuthService, AuthService>();

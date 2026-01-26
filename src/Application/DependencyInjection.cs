@@ -1,7 +1,9 @@
 using FluentValidation;
+using KanbanLite.Application.FeatureFlags;
 using KanbanLite.Application.Services;
 using KanbanLite.Application.Security;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using System.Reflection;
 
 namespace KanbanLite.Application;
@@ -30,8 +32,12 @@ public static class DependencyInjection
     /// do implementacji <see cref="ICurrentUser"/>.
     /// </para>
     /// </remarks>
-    public static IServiceCollection AddKanbanLiteApplication(this IServiceCollection services)
+    public static IServiceCollection AddKanbanLiteApplication(this IServiceCollection services, IConfiguration? configuration = null)
     {
+        // Register Feature Flags
+        var featureFlagConfig = configuration?.GetSection("FeatureFlags").Get<FeatureFlagConfiguration>();
+        services.AddSingleton<IFeatureFlagService>(new FeatureFlagService(featureFlagConfig));
+
         // Register services
         services.AddScoped<IBatchService, BatchService>();
         services.AddScoped<IProjectService, ProjectService>();

@@ -257,3 +257,82 @@ W repo są skrypty PowerShell w `scripts/` (m.in. przygotowanie lokalnego Postgr
 
 **Nie określono** (brak pliku `LICENSE` w repo).
 
+---
+
+## Deployments & Releases
+
+### Strategia Wdrożeń
+
+Projekt wykorzystuje podejście **Deployment ≠ Release**:
+- **Deployment**: automatyczne wdrożenie kodu na serwer (CI/CD)
+- **Release**: kontrolowane udostępnianie funkcji użytkownikom (Feature Flags)
+
+### Feature Flags
+
+System Feature Flags pozwala na bezpieczne wdrażanie niedokończonych funkcji na produkcję:
+
+```csharp
+// Użycie w kodzie
+if (_featureFlagService.IsEnabled(FeatureNames.Dashboard))
+{
+    // Pokaż Dashboard
+}
+```
+
+Konfiguracja w `appsettings.json`:
+```json
+{
+  "FeatureFlags": {
+    "Production": {
+      "Dashboard": true,
+      "Audit": true,
+      "Configuration": true,
+      "Kanban": true
+    }
+  }
+}
+```
+
+Środowisko określane jest przez zmienne: `APP_ENVIRONMENT` → `ASPNETCORE_ENVIRONMENT` → `DOTNET_ENVIRONMENT`.
+
+### Konteneryzacja (Docker)
+
+Projekt zawiera `Dockerfile` dla multi-stage build:
+
+```bash
+# Budowanie obrazu
+docker build -t kanbanlite:latest .
+
+# Uruchomienie kontenera
+docker run -d -p 8080:8080 \
+  -e ConnectionStrings__KanbanConnectionString="..." \
+  -e Supabase__Url="..." \
+  -e Supabase__Key="..." \
+  kanbanlite:latest
+```
+
+### CI/CD Pipeline
+
+| Workflow | Trigger | Opis |
+|----------|---------|------|
+| `pull-request.yml` | PR do main/master | Lint + Unit Tests + E2E Tests |
+| `master.yml` | Push do main/master | Lint + Unit Tests + Docker Build & Push |
+
+### Hosting (Rekomendacje)
+
+Dla projektu .NET Blazor Server rekomendowane platformy:
+
+1. **DigitalOcean App Platform** - prostota, integracja z GHCR
+2. **Azure App Service** - natywne wsparcie .NET
+3. **Railway / Render** - alternatywy z darmowym tier
+
+### Wymagane Sekrety GitHub
+
+| Secret | Opis |
+|--------|------|
+| `SUPABASE_CONNECTIONSTRING_KEY` | Connection string do bazy Supabase |
+| `SUPABASE_PUBLISHABLE_KEY` | Klucz API Supabase |
+| `DIGITALOCEAN_ACCESS_TOKEN` | (opcjonalnie) Token API DigitalOcean |
+| `DIGITALOCEAN_APP_ID` | (opcjonalnie) ID aplikacji na DO |
+
+
