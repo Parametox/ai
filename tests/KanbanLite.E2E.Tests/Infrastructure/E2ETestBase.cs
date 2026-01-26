@@ -100,7 +100,21 @@ public abstract class E2ETestBase : IAsyncLifetime
             }
             throw new Exception($"Login Timeout. Current URL: {Page.Url}. Ensure the database is seeded with test users. Credentials used: Username='{username}', Password='{password}'");
         }
+
+        // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
+        await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = TestConfig.Timeouts.NavigationTimeout
+        });
     }
+
+    /// <summary>
+    /// Logowanie jako Manager.
+    /// </summary>
+    protected Task LoginAsManagerAsync() =>
+        LoginAsync(TestConfig.ManagerUser.Username, TestConfig.ManagerUser.Password);
+
     protected Task LoginAsOperatorAsync() =>
         LoginAsync(TestConfig.OperatorUser.Username, TestConfig.OperatorUser.Password);
 
