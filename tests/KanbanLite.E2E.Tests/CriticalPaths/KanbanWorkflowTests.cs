@@ -11,7 +11,7 @@ public class KanbanWorkflowTests : E2ETestBase
 {
     public KanbanWorkflowTests(PlaywrightFixture fixture) : base(fixture) { }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Manager_CanViewKanbanTable()
     {
         // Arrange
@@ -28,7 +28,7 @@ public class KanbanWorkflowTests : E2ETestBase
         await Expect(tableTitle).ToContainTextAsync("Lista batchy");
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Operator_CanViewKanbanTable()
     {
         // Arrange
@@ -42,7 +42,7 @@ public class KanbanWorkflowTests : E2ETestBase
         await Expect(kanbanTable).ToBeVisibleAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task User_CanFilterBatchesByStatus()
     {
         // Arrange
@@ -66,7 +66,7 @@ public class KanbanWorkflowTests : E2ETestBase
         await Expect(kanbanTable).ToBeVisibleAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task User_CanSearchBatches()
     {
         // Arrange
@@ -86,7 +86,7 @@ public class KanbanWorkflowTests : E2ETestBase
         await Expect(kanbanTable).ToBeVisibleAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task User_CanClearFilters()
     {
         // Arrange
@@ -106,7 +106,7 @@ public class KanbanWorkflowTests : E2ETestBase
         await Expect(kanbanTable).ToBeVisibleAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task User_CanNavigateToProjectFromKanban()
     {
         // Arrange

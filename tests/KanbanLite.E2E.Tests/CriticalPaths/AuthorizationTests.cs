@@ -11,7 +11,7 @@ public class AuthorizationTests : E2ETestBase
 {
     public AuthorizationTests(PlaywrightFixture fixture) : base(fixture) { }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Operator_CannotAccessManagerDashboard()
     {
         // Arrange
@@ -36,7 +36,7 @@ public class AuthorizationTests : E2ETestBase
             "Operator nie powinien mieć dostępu do Dashboard Managera");
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Operator_CannotAccessCreateOrderPage()
     {
         // Arrange
@@ -54,7 +54,7 @@ public class AuthorizationTests : E2ETestBase
             "Operator nie powinien mieć dostępu do formularza tworzenia zlecenia");
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Operator_CanAccessKanban()
     {
         // Arrange
@@ -68,7 +68,7 @@ public class AuthorizationTests : E2ETestBase
         await Expect(kanbanTable).ToBeVisibleAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Manager_CanAccessAllPages()
     {
         // Arrange

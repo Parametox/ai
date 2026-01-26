@@ -10,7 +10,7 @@ public class ProjectDetailsTests : E2ETestBase
 {
     public ProjectDetailsTests(PlaywrightFixture fixture) : base(fixture) { }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Manager_CanViewProjectDetails()
     {
         // Arrange
@@ -38,7 +38,7 @@ public class ProjectDetailsTests : E2ETestBase
         }
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task ProjectDetails_ShowsBatchesTable()
     {
         // Arrange
@@ -60,7 +60,7 @@ public class ProjectDetailsTests : E2ETestBase
         }
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Operator_CanViewProjectDetails()
     {
         // Arrange
@@ -82,7 +82,7 @@ public class ProjectDetailsTests : E2ETestBase
         }
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Operator_CannotSeeShipButton()
     {
         // Arrange

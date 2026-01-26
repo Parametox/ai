@@ -11,7 +11,7 @@ public class CreateOrderTests : E2ETestBase
 {
     public CreateOrderTests(PlaywrightFixture fixture) : base(fixture) { }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Manager_CanCreateNewOrder()
     {
         // Arrange
@@ -62,7 +62,7 @@ public class CreateOrderTests : E2ETestBase
         await Expect(successIndicator.First).ToBeVisibleAsync(new() { Timeout = 10000 });
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Manager_CannotCreateOrderWithEmptyFields()
     {
         // Arrange
@@ -83,7 +83,7 @@ public class CreateOrderTests : E2ETestBase
         await Expect(orderNumberError.Or(quantityError).First).ToBeVisibleAsync(new() { Timeout = 5000 });
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Manager_SeesCreateOrderNavLink()
     {
         // Arrange

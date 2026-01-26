@@ -11,7 +11,7 @@ public class AuthenticationTests : E2ETestBase
 {
     public AuthenticationTests(PlaywrightFixture fixture) : base(fixture) { }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Manager_CanLoginSuccessfully()
     {
         // Arrange
@@ -25,7 +25,7 @@ public class AuthenticationTests : E2ETestBase
         await Expect(dashboardLink).ToBeVisibleAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task Operator_CanLoginSuccessfully()
     {
         // Arrange
@@ -42,7 +42,7 @@ public class AuthenticationTests : E2ETestBase
         await Expect(dashboardLink).ToBeHiddenAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task InvalidCredentials_ShowsError()
     {
         // Arrange
@@ -66,7 +66,7 @@ public class AuthenticationTests : E2ETestBase
         await Expect(errorMessage).ToBeVisibleAsync();
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task User_CanLogout()
     {
         // Arrange
@@ -79,7 +79,7 @@ public class AuthenticationTests : E2ETestBase
         await Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(".*login.*"));
     }
 
-    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
+    [Fact]
     public async Task UnauthenticatedUser_IsRedirectedToLogin()
     {
         // Act - wyloguj + próba dostępu do chronionej strony
