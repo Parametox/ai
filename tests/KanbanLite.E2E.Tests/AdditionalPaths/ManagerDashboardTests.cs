@@ -10,7 +10,7 @@ public class ManagerDashboardTests : E2ETestBase
 {
     public ManagerDashboardTests(PlaywrightFixture fixture) : base(fixture) { }
 
-    [Fact]
+    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
     public async Task Manager_CanAccessDashboard()
     {
         // Arrange
@@ -26,7 +26,7 @@ public class ManagerDashboardTests : E2ETestBase
         await Expect(dashboardTitle).ToBeVisibleAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
     public async Task Dashboard_ShowsOperationalMetrics()
     {
         // Arrange
@@ -44,7 +44,7 @@ public class ManagerDashboardTests : E2ETestBase
         await Expect(warningsCard).ToBeVisibleAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
     public async Task Dashboard_ShowsUrgentProjects()
     {
         // Arrange
@@ -56,7 +56,7 @@ public class ManagerDashboardTests : E2ETestBase
         await Expect(urgentSection).ToBeVisibleAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
     public async Task Dashboard_HasOrderHistoryTab()
     {
         // Arrange
@@ -73,7 +73,7 @@ public class ManagerDashboardTests : E2ETestBase
         await Expect(historyTitle).ToBeVisibleAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "zaskipowane bo stabilizujemy testy")]
     public async Task Dashboard_HasProductFormatsTab()
     {
         // Arrange

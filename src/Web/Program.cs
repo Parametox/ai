@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using System.Net;
 
@@ -32,7 +33,9 @@ builder.Services.AddMudServices();
 // Supabase
 var supabaseUrl = builder.Configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase Url not found.");
 var supabaseKey = builder.Configuration["Supabase:Key"] ?? throw new InvalidOperationException("Supabase Key not found.");
-var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+// Wyłączamy AutoConnectRealtime w środowisku Production/CI, aby uniknąć problemów z autoryzacją WebSocket
+var isDevelopment = builder.Environment.IsDevelopment();
+var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = isDevelopment };
 builder.Services.AddScoped<Supabase.Client>(_ => new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions));
 
 // DataAccess - AppDbContext z DbContextFactory dla Blazor Server
@@ -109,10 +112,21 @@ if (!app.Environment.IsDevelopment())
 }
 
 // Inicjalizacja Supabase
+// Obsługa błędu inicjalizacji - aplikacja może działać bez Realtime w środowisku CI/CD
 using (var scope = app.Services.CreateScope())
 {
-    var supabase = scope.ServiceProvider.GetRequiredService<Supabase.Client>();
-    await supabase.InitializeAsync();
+    try
+    {
+        var supabase = scope.ServiceProvider.GetRequiredService<Supabase.Client>();
+        await supabase.InitializeAsync();
+    }
+    catch (Exception ex)
+    {
+        // W środowisku Production/CI logujemy błąd, ale nie przerywamy uruchomienia aplikacji
+        // Realtime nie jest krytyczne dla podstawowej funkcjonalności aplikacji
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Failed to initialize Supabase Realtime. Application will continue without Realtime support.");
+    }
 }
 
 app.UseHttpsRedirection();
