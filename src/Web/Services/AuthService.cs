@@ -27,9 +27,9 @@ public sealed class AuthService : IAuthService
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            if (string.IsNullOrWhiteSpace(username))
             {
-                _logger.LogWarning("Próba logowania z pustymi danymi");
+                _logger.LogWarning("Próba logowania z pustą nazwą użytkownika");
                 return null;
             }
 
@@ -40,11 +40,16 @@ public sealed class AuthService : IAuthService
                 return null;
             }
 
-            var isPasswordValid = await _userManager.CheckPasswordAsync(user, password);
-            if (!isPasswordValid)
+            // Hasło jest opcjonalne - jeśli użytkownik ma ustawione hasło, weryfikujemy je
+            // Jeśli nie ma hasła w bazie lub hasło nie zostało podane, pomijamy weryfikację
+            if (!string.IsNullOrEmpty(user.PasswordHash) && !string.IsNullOrWhiteSpace(password))
             {
-                _logger.LogWarning("Nieudana próba logowania - nieprawidłowe hasło dla użytkownika: {Username}", username);
-                return null;
+                var isPasswordValid = await _userManager.CheckPasswordAsync(user, password);
+                if (!isPasswordValid)
+                {
+                    _logger.LogWarning("Nieudana próba logowania - nieprawidłowe hasło dla użytkownika: {Username}", username);
+                    return null;
+                }
             }
 
             // Pobierz role użytkownika
