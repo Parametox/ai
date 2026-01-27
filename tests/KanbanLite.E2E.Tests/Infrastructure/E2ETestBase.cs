@@ -82,7 +82,7 @@ public abstract class E2ETestBase : IAsyncLifetime
         if (completedTask == errorTask && errorTask.IsCompletedSuccessfully)
         {
             var errorText = await Page.Locator(".alert-error").InnerTextAsync();
-            throw new Exception($"Login failed with UI error: {errorText}. Credentials used: Username='{username}', Password='{password}' \nException:{errorTask.Exception}");
+            throw new Exception($"Login failed with UI error: {errorText}. Credentials used: Username='{username}', Password='{password}' \nException:{errorTask.Exception}  \nException:{navigationTask.Exception}");
         }
 
         // Jeśli nawigacja wygrała lub nastąpił timeout błędów -> czekaj na nawigację
