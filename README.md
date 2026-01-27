@@ -45,14 +45,14 @@ Kluczowe reguły biznesowe (MVP):
 Zgodnie z `.ai/tech-stack.md`:
 
 - **Frontend/UI**: **Blazor Server (SSR)** + **MudBlazor**
-- **Backend**: **.NET 8 (ASP.NET Core)** (w tym samym hostcie co UI — jeden projekt na MVP)
+- **Backend**: **.NET 9 (ASP.NET Core)** (w tym samym hostcie co UI — jeden projekt na MVP)
 - **Auth/RBAC**: **ASP.NET Core Identity** (cookie auth) + role Manager/Operator
 - **Baza danych / ORM**: **PostgreSQL** + **EF Core (Code‑First)** + migracje
 - **Audyt**: tabela zdarzeń (transakcyjnie razem ze zmianą)
 - **Real-time**: Blazor Server bazuje na SignalR (opcjonalne huby do broadcastu zmian)
 - **Observability**: logowanie (np. Serilog) + podstawowe metryki/healthchecks
 - **CI/CD**: GitHub Actions (restore/build/test + publikacja + deploy; migracje kontrolowane)
-- **Hosting**: Azure App Service + Azure Database for PostgreSQL (MVP)
+- **Hosting**: Azure App Service / DigitalOcean + Supabase (PostgreSQL)
 
 ## Uruchomienie lokalnie
 
@@ -193,10 +193,14 @@ Pliki, które wymagają konfiguracji przed uruchomieniem:
 ### Struktura solucji
 
 - `KanbanLite.sln` — solucja
+- `src/Web` — **warstwa prezentacji** (Blazor Server), kontrolery API, widoki
 - `src/DataAccess` — encje, `AppDbContext`, migracje
 - `src/Application` — **warstwa aplikacyjna** (serwisy/use case’y in-process), **Result Pattern**, RBAC po stronie serwisu
 - `src/DbMigrator` — minimalny projekt startowy do uruchamiania migracji
+- `src/Types.cs` — współdzielone typy (DTO, Command Models)
 - `tests/KanbanLite.Application.UnitTests` — testy jednostkowe warstwy Application (xUnit + FluentAssertions + NSubstitute)
+- `tests/KanbanLite.E2E.Tests` — testy end-to-end (Playwright)
+- `tests/DbSeed.IntegrationTests` — testy integracyjne / seedowanie danych
 
 ## Stan implementacji (backend in-process)
 
@@ -250,8 +254,8 @@ W repo są skrypty PowerShell w `scripts/` (m.in. przygotowanie lokalnego Postgr
 
 ## Status projektu
 
-- **Status**: dokumentacja gotowa, implementacja MVP do rozpoczęcia
-- **Harmonogram (szacunek)**: **4–6 tygodni** (Phase 1: 2–3 tyg, Phase 2: 1–2 tyg, Phase 3: 1 tyg)
+- **Status**: MVP zaimplementowane (Backend + Frontend + Testy E2E). Projekt gotowy do uruchomienia.
+- **Harmonogram**: Zrealizowano zgodnie z planem.
 
 ## Licencja
 
