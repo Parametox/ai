@@ -71,7 +71,7 @@ public sealed class AuthService : IAuthService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Błąd podczas logowania użytkownika: {Username}", username);
-            return null;
+            throw;
         }
     }
 
