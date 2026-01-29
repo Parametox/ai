@@ -43,7 +43,7 @@ public sealed class SessionService : ISessionService
         // Wyciągnij UserId z claimów
         var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier)
                           ?? principal.FindFirst("sub");
-        
+
         // Wyciągnij Username z claimów
         var usernameClaim = principal.FindFirst(ClaimTypes.Name)
                             ?? principal.FindFirst("name");

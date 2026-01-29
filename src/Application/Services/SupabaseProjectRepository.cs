@@ -38,7 +38,7 @@ public class SupabaseProjectRepository(ISupabaseClientAccessor supabaseAccessor)
         // Given previous error, it's safer to not sort by foreign key in Postgrest unless we are sure of syntax.
         // Let's try simple sort first on project ID, and if Date sort is critical, do it in memory or use proper syntax if found.
         // The dashboard error was specific to "orders.due_date".
-        
+
         // Use local sort for now to be safe against the parser error
         dataBuilder = dataBuilder.Order("id", Ordering.Descending);
 
@@ -47,7 +47,7 @@ public class SupabaseProjectRepository(ISupabaseClientAccessor supabaseAccessor)
         dataBuilder = dataBuilder.Range(from, to);
 
         var response = await dataBuilder.Get(ct);
-        
+
         // Add in-memory sort if needed to match EF Core behavior strictly, but pagination limits it.
         // Ideally we want database sort. But let's verify if basic loading works first.
         // If the user insists on DueDate sort order, we will need to revisit.

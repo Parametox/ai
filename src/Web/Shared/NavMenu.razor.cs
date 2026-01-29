@@ -18,10 +18,10 @@ public partial class NavMenu
         {
             // Wywołanie Cookie Bridge API logout przez JS Interop
             await JS.InvokeVoidAsync("auth.logout");
-            
+
             // Wyczyść SessionService
             SessionService.ClearSession();
-            
+
             // Powiadom o zmianie stanu autentykacji
             if (AuthStateProvider is RevalidatingIdentityAuthenticationStateProvider<DataAccess.Identity.ApplicationUser> provider)
             {

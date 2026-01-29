@@ -28,7 +28,7 @@ public abstract class TestBase : IDisposable
         // but pointing to same InMemory DB.
 
         CurrentUser = Substitute.For<ICurrentUser>();
-        
+
         // Mock SupabaseClientAccessor - returns null client, tests need to handle this
         SupabaseClientAccessor = Substitute.For<ISupabaseClientAccessor>();
     }

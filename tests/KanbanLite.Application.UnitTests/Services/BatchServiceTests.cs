@@ -58,7 +58,7 @@ public class BatchServiceTests : TestBase
 
         _batchRepository.GetBatchesAsync(Arg.Any<KanbanQuery>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(([supaBatch], 1));
-            
+
         _batchRepository.GetInProgressCountAsync(Arg.Any<CancellationToken>())
             .Returns(0);
 
@@ -77,7 +77,7 @@ public class BatchServiceTests : TestBase
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
-        
+
         var supaOrder = new SupabaseOrder { Id = 10, OrderNumber = "ALPHA", DueDate = DateTime.Today };
         var supaProject = new SupabaseProject { Id = 10, OrderId = 10, Order = supaOrder, ProjectNumber = "PRJ-ALPHA", IsCompleted = false };
         var supaBatch = new SupabaseBatch { Id = 10, ProjectId = 10, Project = supaProject, BatchNo = 1, Status = BatchStatus.New.ToString(), Stage = (short)ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
@@ -100,14 +100,14 @@ public class BatchServiceTests : TestBase
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
-        
+
         var supaBatchOld = new SupabaseBatch { Id = 101, Status = "New", UpdatedAt = DateTimeOffset.UtcNow.AddHours(-2) };
         var supaBatchNew = new SupabaseBatch { Id = 102, Status = "New", UpdatedAt = DateTimeOffset.UtcNow };
-        
+
         // Note: The repository handles sorting, so the mock should return sorted if we wanted to test logic, 
         // but here we are testing if the Service passes the parameters correctly, or if the Mapping handles the list.
         // Since we mock the repository, we can't test if it sorts. We test if Service deals with what Repository returns.
-        
+
         _batchRepository.GetBatchesAsync(Arg.Is<KanbanQuery>(q => q.Sort == KanbanSort.UpdatedAtDesc), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(([supaBatchNew, supaBatchOld], 2));
 

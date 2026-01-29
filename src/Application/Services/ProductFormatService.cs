@@ -118,7 +118,7 @@ public sealed class ProductFormatService(
         try
         {
             // Note: DB unique constraint handling via Supabase usually returns specific error code 23505
-            
+
             var now = DateTimeOffset.UtcNow;
             var entity = new SupabaseProductFormat
             {
@@ -136,8 +136,8 @@ public sealed class ProductFormatService(
             // Checking for unique constraint violation in Supabase/Postgrest exception is possible but keeping it generic for now or checking message
             if (ex.Message.Contains("23505")) // PostgreSQL unique violation code
             {
-                 return Result<ProductFormatDto>.Fail(
-                    AppError.Conflict("Nie udało się utworzyć formatu (prawdopodobnie nazwa już istnieje)."));
+                return Result<ProductFormatDto>.Fail(
+                   AppError.Conflict("Nie udało się utworzyć formatu (prawdopodobnie nazwa już istnieje)."));
             }
 
             return Result<ProductFormatDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas tworzenia formatu produktu."));
@@ -187,12 +187,12 @@ public sealed class ProductFormatService(
 
             return Result<ProductFormatDto>.Ok(new ProductFormatDto(entity.Id, entity.Name ?? "", entity.IsActive, entity.CreatedAt));
         }
-        catch (Exception ex) 
+        catch (Exception ex)
         {
-            if (ex.Message.Contains("23505")) 
+            if (ex.Message.Contains("23505"))
             {
-                 return Result<ProductFormatDto>.Fail(
-                    AppError.Conflict("Nie udało się zaktualizować formatu (prawdopodobnie nazwa już istnieje)."));
+                return Result<ProductFormatDto>.Fail(
+                   AppError.Conflict("Nie udało się zaktualizować formatu (prawdopodobnie nazwa już istnieje)."));
             }
             return Result<ProductFormatDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas aktualizacji formatu produktu."));
         }

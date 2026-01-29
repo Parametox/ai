@@ -61,11 +61,11 @@ public class SupabaseProductFormatRepository(ISupabaseClientAccessor supabaseAcc
 
     public async Task<IReadOnlyList<SupabaseProductFormat>> GetActiveLookupAsync(CancellationToken ct = default)
     {
-         var response = await supabaseClient.From<SupabaseProductFormat>()
-            .Select("id, name")
-            .Filter("is_active", Operator.Equals, "true")
-            .Order("name", Ordering.Ascending)
-            .Get(ct);
+        var response = await supabaseClient.From<SupabaseProductFormat>()
+           .Select("id, name")
+           .Filter("is_active", Operator.Equals, "true")
+           .Order("name", Ordering.Ascending)
+           .Get(ct);
         return response.Models;
     }
 
@@ -83,8 +83,8 @@ public class SupabaseProductFormatRepository(ISupabaseClientAccessor supabaseAcc
 
     public async Task DeleteAsync(long id, CancellationToken ct = default)
     {
-         await supabaseClient.From<SupabaseProductFormat>()
-            .Filter("id", Operator.Equals, id.ToString())
-            .Delete(new Postgrest.QueryOptions(), ct);
+        await supabaseClient.From<SupabaseProductFormat>()
+           .Filter("id", Operator.Equals, id.ToString())
+           .Delete(new Postgrest.QueryOptions(), ct);
     }
 }

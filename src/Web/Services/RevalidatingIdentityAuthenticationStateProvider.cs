@@ -21,7 +21,7 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider<TUser>
     {
         _sessionService = sessionService;
         _httpContextAccessor = httpContextAccessor;
-        
+
         // Próba przywrócenia sesji przy starcie komponentu (zakłada dostępność HttpContext)
         InitializeSessionFromHttpContext();
     }
@@ -60,7 +60,7 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider<TUser>
 
     private void InitializeSessionFromHttpContext()
     {
-        try 
+        try
         {
             var user = _httpContextAccessor.HttpContext?.User;
             if (user?.Identity?.IsAuthenticated == true)

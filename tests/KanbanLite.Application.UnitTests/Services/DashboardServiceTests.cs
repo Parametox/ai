@@ -99,5 +99,5 @@ public class DashboardServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Warnings.Should().Contain(w => w.Code == "InProgressSoftLimitExceeded");
-    }  
+    }
 }

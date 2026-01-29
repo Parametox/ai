@@ -109,13 +109,13 @@ public sealed class BatchSplitRuleService(
             // or we might need to fetch it or rely on re-fetching.
             // For MVP, assuming successful insert. Real ID might be 0 if the client doesn't auto-update.
             // Let's assume for now it's fine or we accept ID=0 in response until re-fetch.
-            
+
             return Result<BatchSplitRuleDto>.Ok(ToDto(entity));
         }
         catch (Exception)
         {
-             return Result<BatchSplitRuleDto>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas tworzenia reguły dzielenia batchy."));
+            return Result<BatchSplitRuleDto>.Fail(
+               AppError.Unexpected("Nieoczekiwany błąd podczas tworzenia reguły dzielenia batchy."));
         }
     }
 
@@ -293,12 +293,12 @@ public sealed class BatchSplitRuleService(
 
             if (startA <= endB && endA >= startB)
             {
-                 return AppError.ValidationFailed(
-                    "Nowa reguła koliduje zakresem ilości z istniejącą aktywną regułą.",
-                    new Dictionary<string, IReadOnlyList<string>>
-                    {
-                        ["range"] = [$"Konflikt z regułą ID={rule.Id} (Min={rule.MinQty}, Max={rule.MaxQty})."]
-                    });
+                return AppError.ValidationFailed(
+                   "Nowa reguła koliduje zakresem ilości z istniejącą aktywną regułą.",
+                   new Dictionary<string, IReadOnlyList<string>>
+                   {
+                       ["range"] = [$"Konflikt z regułą ID={rule.Id} (Min={rule.MinQty}, Max={rule.MaxQty})."]
+                   });
             }
         }
 

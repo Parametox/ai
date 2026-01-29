@@ -12,7 +12,7 @@ public interface ISessionService
     void SetSession(string userId, string username, IEnumerable<string> roles);
     void ClearSession();
     bool IsInRole(string roleName);
-    
+
     /// <summary>
     /// Inicjalizuje sesję z claimów ciasteczka (hydration po F5).
     /// </summary>

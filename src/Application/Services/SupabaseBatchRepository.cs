@@ -13,7 +13,7 @@ public class SupabaseBatchRepository(ISupabaseClientAccessor supabaseAccessor) :
     public async Task<(IReadOnlyList<SupabaseBatch> Items, int TotalCount)> GetBatchesAsync(KanbanQuery query, int page, int pageSize, CancellationToken ct = default)
     {
         var q = string.IsNullOrWhiteSpace(query.Q) ? null : query.Q.Trim();
-        
+
         // 1. Build Count Query
         var countBuilder = supabaseClient.From<SupabaseBatch>()
             .Select("*, Project:projects!inner(*, Order:orders(*))");
@@ -37,7 +37,7 @@ public class SupabaseBatchRepository(ISupabaseClientAccessor supabaseAccessor) :
 
         // Get total count
         var countAttempt = await countBuilder.Count(CountType.Exact);
-        var total = countAttempt; 
+        var total = countAttempt;
 
         // 2. Build Data Query
         var dataBuilder = supabaseClient.From<SupabaseBatch>()
@@ -65,30 +65,30 @@ public class SupabaseBatchRepository(ISupabaseClientAccessor supabaseAccessor) :
         switch (sort)
         {
             case KanbanSort.DueDateAsc:
-                 dataBuilder = dataBuilder.Order("projects.orders.due_date", Ordering.Ascending)
-                                  .Order("updated_at", Ordering.Descending);
-                 break;
+                dataBuilder = dataBuilder.Order("projects.orders.due_date", Ordering.Ascending)
+                                 .Order("updated_at", Ordering.Descending);
+                break;
             case KanbanSort.DueDateDesc:
-                 dataBuilder = dataBuilder.Order("projects.orders.due_date", Ordering.Descending)
-                                  .Order("updated_at", Ordering.Descending);
-                 break;
+                dataBuilder = dataBuilder.Order("projects.orders.due_date", Ordering.Descending)
+                                 .Order("updated_at", Ordering.Descending);
+                break;
             case KanbanSort.UpdatedAtDesc:
-                 dataBuilder = dataBuilder.Order("updated_at", Ordering.Descending);
-                 break;
+                dataBuilder = dataBuilder.Order("updated_at", Ordering.Descending);
+                break;
             default:
-                 dataBuilder = dataBuilder.Order("updated_at", Ordering.Descending);
-                 break;
+                dataBuilder = dataBuilder.Order("updated_at", Ordering.Descending);
+                break;
         }
 
         // Pagination
         var from = (page - 1) * pageSize;
         var to = from + pageSize - 1;
-        
+
         dataBuilder = dataBuilder.Range(from, to);
 
         // Execute Data Query
-        var response = await dataBuilder.Get(ct); 
-        
+        var response = await dataBuilder.Get(ct);
+
         return (response.Models, total);
     }
 
@@ -101,10 +101,10 @@ public class SupabaseBatchRepository(ISupabaseClientAccessor supabaseAccessor) :
 
     public async Task<SupabaseBatch?> GetByIdAsync(long id, CancellationToken ct = default)
     {
-         return await supabaseClient.From<SupabaseBatch>()
-            .Select("*")
-            .Filter("id", Operator.Equals, id.ToString())
-            .Single(ct);
+        return await supabaseClient.From<SupabaseBatch>()
+           .Select("*")
+           .Filter("id", Operator.Equals, id.ToString())
+           .Single(ct);
     }
 
     public async Task CreateRangeAsync(IEnumerable<SupabaseBatch> batches, CancellationToken ct = default)
@@ -138,24 +138,24 @@ public class SupabaseBatchRepository(ISupabaseClientAccessor supabaseAccessor) :
 
     public async Task DeleteByProjectIdAsync(long projectId, CancellationToken ct = default)
     {
-         // Get batch IDs first to delete dependent audit logs
-         var batchesResponse = await supabaseClient.From<SupabaseBatch>()
-            .Select("id")
-            .Filter("project_id", Operator.Equals, projectId.ToString())
-            .Get(ct);
+        // Get batch IDs first to delete dependent audit logs
+        var batchesResponse = await supabaseClient.From<SupabaseBatch>()
+           .Select("id")
+           .Filter("project_id", Operator.Equals, projectId.ToString())
+           .Get(ct);
 
-         var batchIds = batchesResponse.Models.Select(b => b.Id).ToList();
+        var batchIds = batchesResponse.Models.Select(b => b.Id).ToList();
 
-         if (batchIds.Count > 0)
-         {
-             // Delete dependent audit logs 
-             await supabaseClient.From<SupabaseBatchAuditLog>()
-                 .Filter("batch_id", Operator.In, batchIds.Select(id => (object)id).ToList()) 
-                 .Delete(cancellationToken: ct);
-         }
+        if (batchIds.Count > 0)
+        {
+            // Delete dependent audit logs 
+            await supabaseClient.From<SupabaseBatchAuditLog>()
+                .Filter("batch_id", Operator.In, batchIds.Select(id => (object)id).ToList())
+                .Delete(cancellationToken: ct);
+        }
 
-         await supabaseClient.From<SupabaseBatch>()
-            .Filter("project_id", Operator.Equals, projectId.ToString())
-            .Delete(cancellationToken: ct);
+        await supabaseClient.From<SupabaseBatch>()
+           .Filter("project_id", Operator.Equals, projectId.ToString())
+           .Delete(cancellationToken: ct);
     }
 }

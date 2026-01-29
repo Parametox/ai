@@ -116,7 +116,7 @@ public class OrderServiceTests : TestBase
         var formatId = 20L;
         _productFormatRepository.GetByIdAsync(formatId)
             .Returns(new SupabaseProductFormat { Id = formatId, Name = "A5", IsActive = true });
-        
+
         _batchSplitRuleRepository.GetActiveRulesAsync()
             .Returns(new List<SupabaseBatchSplitRule>()); // Empty
 
@@ -141,7 +141,7 @@ public class OrderServiceTests : TestBase
 
         var formatId = 30L;
         _productFormatRepository.GetByIdAsync(formatId).Returns(new SupabaseProductFormat { Id = formatId, IsActive = true, Name = "PF" });
-        
+
         // Rule: Min 100, Max null, Percent 1.0 (1 batch)
         _batchSplitRuleRepository.GetActiveRulesAsync().Returns(new List<SupabaseBatchSplitRule>
         {
@@ -150,14 +150,16 @@ public class OrderServiceTests : TestBase
 
         // Mock Creates returning instances
         _orderRepository.CreateAsync(Arg.Any<SupabaseOrder>(), Arg.Any<CancellationToken>())
-            .Returns(call => {
+            .Returns(call =>
+            {
                 var o = call.Arg<SupabaseOrder>();
                 o.Id = 123;
                 return o;
             });
 
         _projectRepository.CreateAsync(Arg.Any<SupabaseProject>(), Arg.Any<CancellationToken>())
-            .Returns(call => {
+            .Returns(call =>
+            {
                 var p = call.Arg<SupabaseProject>();
                 p.Id = 456;
                 return p;

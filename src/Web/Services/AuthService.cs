@@ -57,7 +57,7 @@ public sealed class AuthService : IAuthService
             {
                 var appUser = new ApplicationUser { Id = user.Id, UserName = user.UserName, PasswordHash = user.PasswordHash };
                 var verificationResult = _passwordHasher.VerifyHashedPassword(appUser, user.PasswordHash, password);
-                
+
                 if (verificationResult == PasswordVerificationResult.Failed)
                 {
                     _logger.LogWarning("Nieudana próba logowania - nieprawidłowe hasło dla użytkownika: {Username}", username);
@@ -66,10 +66,10 @@ public sealed class AuthService : IAuthService
             }
 
             // Pobierz role użytkownika
-             var userRolesResponse = await _supabaseClient.From<SupabaseUserRole>()
-                .Select("RoleId")
-                .Filter("UserId", Operator.Equals, user.Id)
-                .Get();
+            var userRolesResponse = await _supabaseClient.From<SupabaseUserRole>()
+               .Select("RoleId")
+               .Filter("UserId", Operator.Equals, user.Id)
+               .Get();
 
             var roleIds = userRolesResponse.Models.Select(ur => ur.RoleId).ToList();
             var roles = new List<string>();

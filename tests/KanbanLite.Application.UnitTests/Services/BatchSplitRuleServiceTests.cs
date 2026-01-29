@@ -198,7 +198,7 @@ public class BatchSplitRuleServiceTests
         _currentUser.IsInRole("Manager").Returns(true);
 
         _repository.GetActiveRulesAsync().Returns(new List<SupabaseBatchSplitRule>());
-        
+
         var dto = new UpsertBatchSplitRuleRequest(
             MinQty: 1,
             MaxQty: 100,
@@ -284,7 +284,7 @@ public class BatchSplitRuleServiceTests
 
         var existingRule = new SupabaseBatchSplitRule { Id = 1, MinQty = 0, MaxQty = 50 };
         _repository.GetByIdAsync(1).Returns(existingRule);
-        
+
         // No overlap check if not active, or mock active list to empty
         // Assuming update changes active status or just validates overlap even if inactive?
         // Logic says "if (request.IsActive)" then check overlap.
@@ -310,8 +310,8 @@ public class BatchSplitRuleServiceTests
 
     #endregion
 
-     #region SetActiveAsync Tests
-     // Added simple test since method exists
+    #region SetActiveAsync Tests
+    // Added simple test since method exists
     [Fact]
     public async Task SetActiveAsync_Success_ReturnsDto()
     {
@@ -329,5 +329,5 @@ public class BatchSplitRuleServiceTests
         result.IsSuccess.Should().BeTrue();
         await _repository.Received(1).UpdateAsync(Arg.Is<SupabaseBatchSplitRule>(x => x.Id == 1 && x.IsActive == true));
     }
-     #endregion
+    #endregion
 }

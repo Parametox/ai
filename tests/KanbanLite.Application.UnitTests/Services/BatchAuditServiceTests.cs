@@ -26,7 +26,7 @@ public class BatchAuditServiceTests
         _batchAuditRepository = Substitute.For<IBatchAuditRepository>();
         _batchRepository = Substitute.For<IBatchRepository>();
         _currentUser = Substitute.For<ICurrentUser>();
-        
+
         _service = new BatchAuditService(_batchAuditRepository, _batchRepository, _currentUser);
     }
 

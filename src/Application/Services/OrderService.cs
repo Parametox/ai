@@ -70,7 +70,7 @@ public sealed class OrderService(
 
             var allRules = await batchSplitRuleRepository.GetActiveRulesAsync(ct);
             var splitRule = FindActiveRule(allRules, normalized.Quantity);
-            
+
             if (splitRule is null)
             {
                 return Result<CreateOrderResult>.Fail(AppError.ValidationFailed(
@@ -91,9 +91,9 @@ public sealed class OrderService(
                 DueDate = normalized.DueDate.ToDateTime(TimeOnly.MinValue),
                 CreatedAt = now
             };
-            
+
             var createdOrder = await orderRepository.CreateAsync(order, ct);
-            
+
             var projectNumber = CreateProjectNumberFromOrderNumber(createdOrder.OrderNumber ?? "");
             var project = new SupabaseProject
             {
@@ -107,20 +107,20 @@ public sealed class OrderService(
             var batches = CreateBatches(createdProject.Id, createdOrder.Quantity, splitRule, now);
             await batchRepository.CreateRangeAsync(batches, ct);
 
-             var orderDto = new OrderDto(
-                 createdOrder.Id, createdOrder.OrderNumber ?? "", createdOrder.Quantity, createdOrder.ProductFormatId, DateOnly.FromDateTime(createdOrder.DueDate), createdOrder.CreatedAt
-             );
-             var projectDto = new ProjectDto(
-                 createdProject.Id, createdProject.OrderId, createdProject.ProjectNumber ?? "", createdProject.IsCompleted, createdProject.CreatedAt
-             );
-             var batchDtos = batches.Select(b => new BatchDto(
-                 b.Id, b.ProjectId, b.BatchNo, b.Quantity, 
-                 Enum.TryParse<BatchStatus>(b.Status, out var s) ? s : BatchStatus.New,
-                 (ProductionStage)b.Stage,
-                 b.CreatedAt, b.UpdatedAt
-             )).ToList();
+            var orderDto = new OrderDto(
+                createdOrder.Id, createdOrder.OrderNumber ?? "", createdOrder.Quantity, createdOrder.ProductFormatId, DateOnly.FromDateTime(createdOrder.DueDate), createdOrder.CreatedAt
+            );
+            var projectDto = new ProjectDto(
+                createdProject.Id, createdProject.OrderId, createdProject.ProjectNumber ?? "", createdProject.IsCompleted, createdProject.CreatedAt
+            );
+            var batchDtos = batches.Select(b => new BatchDto(
+                b.Id, b.ProjectId, b.BatchNo, b.Quantity,
+                Enum.TryParse<BatchStatus>(b.Status, out var s) ? s : BatchStatus.New,
+                (ProductionStage)b.Stage,
+                b.CreatedAt, b.UpdatedAt
+            )).ToList();
 
-             return Result<CreateOrderResult>.Ok(new CreateOrderResult(orderDto, projectDto, batchDtos));
+            return Result<CreateOrderResult>.Ok(new CreateOrderResult(orderDto, projectDto, batchDtos));
 
         }
         catch (Exception ex)
@@ -132,64 +132,64 @@ public sealed class OrderService(
     public async Task<Result<PagedResult<OrderListItemDto>>> GetAsync(OrderQuery query, CancellationToken ct = default)
     {
         if (query is null) return Result<PagedResult<OrderListItemDto>>.Fail(AppError.ValidationFailed("Query required."));
-        
+
         var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null) return Result<PagedResult<OrderListItemDto>>.Fail(authError);
 
-        try 
+        try
         {
-             var page = query.Page < 1 ? 1 : query.Page;
-             var pageSize = query.PageSize < 1 ? 50 : (query.PageSize > 200 ? 200 : query.PageSize); 
+            var page = query.Page < 1 ? 1 : query.Page;
+            var pageSize = query.PageSize < 1 ? 50 : (query.PageSize > 200 ? 200 : query.PageSize);
 
-             var (items, total) = await orderRepository.GetOrdersAsync(query, page, pageSize, ct);
+            var (items, total) = await orderRepository.GetOrdersAsync(query, page, pageSize, ct);
 
-             var mappedItems = items.Select(o => new OrderListItemDto(
-                 o.Id,
-                 o.OrderNumber ?? "",
-                 o.Quantity,
-                 DateOnly.FromDateTime(o.DueDate),
-                 o.ProductFormat?.Name ?? "", 
-                 o.CreatedAt
-             )).ToList();
+            var mappedItems = items.Select(o => new OrderListItemDto(
+                o.Id,
+                o.OrderNumber ?? "",
+                o.Quantity,
+                DateOnly.FromDateTime(o.DueDate),
+                o.ProductFormat?.Name ?? "",
+                o.CreatedAt
+            )).ToList();
 
-             return Result<PagedResult<OrderListItemDto>>.Ok(new PagedResult<OrderListItemDto>(mappedItems, page, pageSize, total));
+            return Result<PagedResult<OrderListItemDto>>.Ok(new PagedResult<OrderListItemDto>(mappedItems, page, pageSize, total));
         }
         catch (Exception ex)
         {
-             return Result<PagedResult<OrderListItemDto>>.Fail(AppError.Unexpected(ex.Message));
+            return Result<PagedResult<OrderListItemDto>>.Fail(AppError.Unexpected(ex.Message));
         }
     }
-    
+
     public async Task<Result<OrderDetailsDto>> GetByIdAsync(long id, CancellationToken ct = default)
     {
-         var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
-         if (authError is not null) return Result<OrderDetailsDto>.Fail(authError);
-         
-         try
-         {
-             var order = await orderRepository.GetByIdAsync(id, ct);
-             if (order is null) return Result<OrderDetailsDto>.Fail(AppError.NotFound($"Zlecenie o id={id} nie istnieje."));
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
+        if (authError is not null) return Result<OrderDetailsDto>.Fail(authError);
 
-             var project = await projectRepository.GetByOrderIdAsync(id, ct);
-             if (project is null) return Result<OrderDetailsDto>.Fail(AppError.Unexpected("Niespójne dane: zlecenie nie ma powiązanego projektu."));
+        try
+        {
+            var order = await orderRepository.GetByIdAsync(id, ct);
+            if (order is null) return Result<OrderDetailsDto>.Fail(AppError.NotFound($"Zlecenie o id={id} nie istnieje."));
 
-             var projectSummary = new OrderProjectSummaryDto(project.Id, project.ProjectNumber ?? "", project.IsCompleted);
+            var project = await projectRepository.GetByOrderIdAsync(id, ct);
+            if (project is null) return Result<OrderDetailsDto>.Fail(AppError.Unexpected("Niespójne dane: zlecenie nie ma powiązanego projektu."));
 
-             var dto = new OrderDetailsDto(
-                order.Id,
-                order.OrderNumber ?? "",
-                order.Quantity,
-                DateOnly.FromDateTime(order.DueDate),
-                new ProductFormatLookupDto(order.ProductFormatId, order.ProductFormat?.Name ?? ""),
-                projectSummary
-            );
+            var projectSummary = new OrderProjectSummaryDto(project.Id, project.ProjectNumber ?? "", project.IsCompleted);
+
+            var dto = new OrderDetailsDto(
+               order.Id,
+               order.OrderNumber ?? "",
+               order.Quantity,
+               DateOnly.FromDateTime(order.DueDate),
+               new ProductFormatLookupDto(order.ProductFormatId, order.ProductFormat?.Name ?? ""),
+               projectSummary
+           );
 
             return Result<OrderDetailsDto>.Ok(dto);
-         }
-         catch (Exception ex)
-         {
-             return Result<OrderDetailsDto>.Fail(AppError.Unexpected(ex.Message));
-         }
+        }
+        catch (Exception ex)
+        {
+            return Result<OrderDetailsDto>.Fail(AppError.Unexpected(ex.Message));
+        }
     }
 
     private static CreateOrderRequest Normalize(CreateOrderRequest request)

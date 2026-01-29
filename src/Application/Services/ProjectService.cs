@@ -93,7 +93,7 @@ public sealed class ProjectService(IProjectRepository projectRepository, IBatchR
 
             var allBatchesDone = project.Batches.Count > 0 && project.Batches.All(
                 b => b.Status == BatchStatus.Done.ToString() && b.Stage == (short)ProductionStage.Ship);
-            
+
             string? notReadyReason = null;
             if (project.Batches.Count == 0) notReadyReason = "Brak batchy.";
             else if (!allBatchesDone) notReadyReason = "Nie wszystkie batche są gotowe.";
@@ -189,9 +189,9 @@ public sealed class ProjectService(IProjectRepository projectRepository, IBatchR
         }
         catch (Exception ex)
         {
-             Console.WriteLine(ex);
-             return Result<ShipProjectResult>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas wysyłki projektu do klienta."));
+            Console.WriteLine(ex);
+            return Result<ShipProjectResult>.Fail(
+               AppError.Unexpected("Nieoczekiwany błąd podczas wysyłki projektu do klienta."));
         }
     }
 

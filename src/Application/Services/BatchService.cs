@@ -81,7 +81,7 @@ public sealed class BatchService(IBatchRepository batchRepository, ICurrentUser 
         UpdateBatchStatusRequest request,
         CancellationToken ct = default)
     {
-         if (request is null)
+        if (request is null)
         {
             return Result<UpdateBatchStatusResult>.Fail(
                 AppError.ValidationFailed("Brak payloadu żądania.", new Dictionary<string, IReadOnlyList<string>>
@@ -101,7 +101,7 @@ public sealed class BatchService(IBatchRepository batchRepository, ICurrentUser 
             var batch = await batchRepository.GetByIdAsync(batchId, ct);
             if (batch is null)
             {
-                 return Result<UpdateBatchStatusResult>.Fail(AppError.NotFound($"Batch o id={batchId} nie istnieje."));
+                return Result<UpdateBatchStatusResult>.Fail(AppError.NotFound($"Batch o id={batchId} nie istnieje."));
             }
 
             if (!Enum.TryParse<BatchStatus>(batch.Status, out var oldStatus)) oldStatus = BatchStatus.New;
@@ -116,7 +116,7 @@ public sealed class BatchService(IBatchRepository batchRepository, ICurrentUser 
             if (oldStatus == newStatus)
             {
                 var count = await batchRepository.GetInProgressCountAsync(ct);
-                
+
                 var warnings = CreateSoftLimitWarnings(count);
                 return Result<UpdateBatchStatusResult>.Ok(new UpdateBatchStatusResult(
                     BatchId: batch.Id,
@@ -130,7 +130,7 @@ public sealed class BatchService(IBatchRepository batchRepository, ICurrentUser 
             }
 
             var now = DateTimeOffset.UtcNow;
-            
+
             await batchRepository.UpdateStatusAsync(batchId, newStatus.ToString(), now, ct);
 
             var log = new SupabaseBatchAuditLog
@@ -140,14 +140,14 @@ public sealed class BatchService(IBatchRepository batchRepository, ICurrentUser 
                 ChangedByUserId = currentUser.UserId!,
                 OldStatus = oldStatus.ToString(),
                 NewStatus = newStatus.ToString(),
-                OldStage = null, 
+                OldStage = null,
                 NewStage = null
             };
             await batchRepository.AddAuditLogAsync(log, ct);
 
             // Count
             var inProgressCount = await batchRepository.GetInProgressCountAsync(ct);
-            
+
             var warningsAfter = CreateSoftLimitWarnings(inProgressCount);
 
             return Result<UpdateBatchStatusResult>.Ok(new UpdateBatchStatusResult(

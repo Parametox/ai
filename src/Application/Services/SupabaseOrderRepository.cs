@@ -11,23 +11,23 @@ public class SupabaseOrderRepository(ISupabaseClientAccessor supabaseAccessor) :
 
     public async Task<(IReadOnlyList<SupabaseOrder> Items, int TotalCount)> GetOrdersAsync(OrderQuery query, int page, int pageSize, CancellationToken ct = default)
     {
-         // 1. Count Builder
-         var countBuilder = supabaseClient.From<SupabaseOrder>()
-            .Select("*, ProductFormat:product_formats(*)");
+        // 1. Count Builder
+        var countBuilder = supabaseClient.From<SupabaseOrder>()
+           .Select("*, ProductFormat:product_formats(*)");
 
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
             countBuilder = countBuilder.Filter("order_number", Operator.ILike, $"%{query.Q}%");
         }
-        
+
         if (query.DueFrom.HasValue)
         {
-             countBuilder = countBuilder.Filter("due_date", Operator.GreaterThanOrEqual, query.DueFrom.Value.ToString("yyyy-MM-dd"));
+            countBuilder = countBuilder.Filter("due_date", Operator.GreaterThanOrEqual, query.DueFrom.Value.ToString("yyyy-MM-dd"));
         }
 
         if (query.DueTo.HasValue)
         {
-             countBuilder = countBuilder.Filter("due_date", Operator.LessThanOrEqual, query.DueTo.Value.ToString("yyyy-MM-dd"));
+            countBuilder = countBuilder.Filter("due_date", Operator.LessThanOrEqual, query.DueTo.Value.ToString("yyyy-MM-dd"));
         }
 
         var total = await countBuilder.Count(CountType.Exact);
@@ -40,15 +40,15 @@ public class SupabaseOrderRepository(ISupabaseClientAccessor supabaseAccessor) :
         {
             dataBuilder = dataBuilder.Filter("order_number", Operator.ILike, $"%{query.Q}%");
         }
-        
+
         if (query.DueFrom.HasValue)
         {
-             dataBuilder = dataBuilder.Filter("due_date", Operator.GreaterThanOrEqual, query.DueFrom.Value.ToString("yyyy-MM-dd"));
+            dataBuilder = dataBuilder.Filter("due_date", Operator.GreaterThanOrEqual, query.DueFrom.Value.ToString("yyyy-MM-dd"));
         }
 
         if (query.DueTo.HasValue)
         {
-             dataBuilder = dataBuilder.Filter("due_date", Operator.LessThanOrEqual, query.DueTo.Value.ToString("yyyy-MM-dd"));
+            dataBuilder = dataBuilder.Filter("due_date", Operator.LessThanOrEqual, query.DueTo.Value.ToString("yyyy-MM-dd"));
         }
 
         dataBuilder = dataBuilder.Order("due_date", Ordering.Ascending)

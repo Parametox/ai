@@ -56,7 +56,7 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(5),
             errorCodesToAdd: null);
     });
-    
+
     // Włączenie szczegółowych błędów w development
     if (builder.Environment.IsDevelopment())
     {
