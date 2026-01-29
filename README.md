@@ -1,342 +1,69 @@
-# KanbanLite (MVP) — zarządzanie produkcją kartek świątecznych
+﻿# KanbanLite (MVP) — zarządzanie produkcją kartek świątecznych
 
-Minimalna aplikacja (MVP) do śledzenia produkcji kartek świątecznych w **5 etapach**: Projektowanie → Druk → Cięcie → Pakowanie → Wysyłka.  
-Repozytorium zawiera na ten moment przede wszystkim **dokumentację i ustalenia** (PRD + stack technologiczny).
+Aplikacja do śledzenia produkcji kartek świątecznych w **5 etapach**: Projektowanie → Druk → Cięcie → Pakowanie → Wysyłka.
 
 ## Spis treści
 
-- [Nazwa projektu](#nazwa-projektu)
-- [Opis projektu](#opis-projektu)
+- [Opis](#opis-projektu)
+- [Funkcjonalność](#funkcjonalność-mvp)
 - [Stos technologiczny](#stos-technologiczny)
-- [Uruchomienie lokalnie](#uruchomienie-lokalnie)
-- [Dostępne skrypty](#dostępne-skrypty)
-- [Zakres (scope)](#zakres-scope)
-- [Status projektu](#status-projektu)
-- [Licencja](#licencja)
-
-## Nazwa projektu
-
-**KanbanLite (MVP)**
+- [Status](#status)
 
 ## Opis projektu
 
 Produkt wspiera dwa typy użytkowników:
 
-- **Manager**: ma dostęp do **Kanban** oraz **Panelu Managera** (w tym konfiguracja, dashboard, wysyłka do klienta).
-- **Operator**: ma dostęp do **Kanban** (aktualizacja statusu i etapu batchy).
+- **Manager**: dostęp do Kanban i Panelu Managera (dashboard, konfiguracja, wysyłka)
+- **Operator**: dostęp do Kanban (aktualizacja statusu i etapu)
 
-Główne pojęcia domenowe:
+### Główne pojęcia
 
-- **Zlecenie/Projekt**: tworzone przez Managera (ilość sztuk, format produktu, termin realizacji).
-- **Batch**: automatycznie tworzony podział zlecenia; każdy batch ma status, etap produkcji i postęp.
+- **Zlecenie**: tworzone przez Managera (ilość, format, termin)
+- **Batch**: automatycznie tworzony podział zlecenia z statusem i etapem produkcji
 
-Kluczowe reguły biznesowe (MVP):
+### Funkcjonalność (MVP)
 
-- **Statusy batchy**: `New`, `InProgress`, `Done`
-- **Etapy produkcji**: 5 etapów (od Projektowania do Wysyłki)
-- **Zmiana etapu**: tylko „do przodu” (po enumie)
-- **Soft limit 20**: dotyczy wyłącznie liczby batchy w statusie **InProgress** (ostrzeżenie/ikona, bez blokowania)
-- **Wysyłka do klienta**: tylko dla Managera i dopiero gdy wszystkie batche spełniają warunek zakończenia (**etap Wysyłka** + **status Done**)
-- **Audyt**: log zmian batchy (kto/kiedy + zmiany statusu/etapu)
-- **Brak self‑registration**: konta startowe seedowane (menago/menago, operator/operator)
-
-## Stos technologiczny
-
-Zgodnie z `.ai/tech-stack.md`:
-
-- **Frontend/UI**: **Blazor Server (SSR)** + **MudBlazor**
-- **Backend**: **.NET 9 (ASP.NET Core)** (w tym samym hostcie co UI — jeden projekt na MVP)
-- **Auth/RBAC**: **ASP.NET Core Identity** (cookie auth) + role Manager/Operator
-- **Baza danych / ORM**: **PostgreSQL** + **EF Core (Code‑First)** + migracje
-- **Audyt**: tabela zdarzeń (transakcyjnie razem ze zmianą)
-- **Real-time**: Blazor Server bazuje na SignalR (opcjonalne huby do broadcastu zmian)
-- **Observability**: logowanie (np. Serilog) + podstawowe metryki/healthchecks
-- **CI/CD**: GitHub Actions (restore/build/test + publikacja + deploy; migracje kontrolowane)
-- **Hosting**: Azure App Service / DigitalOcean + Supabase (PostgreSQL)
-
-## Uruchomienie lokalnie
-
-Repozytorium zawiera już podstawową strukturę `.NET` oraz **warstwę dostępu do danych** (EF Core + PostgreSQL) z migracjami.
-Kontrakt DTO/Command Models (na potrzeby warstwy serwisów / UI Blazor Server) jest w `src/Types.cs`.
-
-### Konfiguracja środowisk
-
-Aplikacja obsługuje dwa środowiska:
-
-| Środowisko | Baza danych | Konfiguracja |
-|------------|-------------|--------------|
-| **Development** (Debug) | Lokalna PostgreSQL (localhost:5432) | `appsettings.Development.json` |
-| **Production** (Release/CI) | Supabase Cloud | `appsettings.json` + Environment Variable |
-
-#### Lokalne uruchomienie (Development)
-```powershell
-dotnet run --project src/Web
-# lub
-dotnet run --project src/Web --configuration Debug
-```
-Używa `appsettings.Development.json` z connection stringiem do localhost. Skonfiguruj connection string w pliku konfiguracyjnym lub przez zmienne środowiskowe.
-
-#### Uruchomienie produkcyjne (Release)
-```powershell
-dotnet run --project src/Web --configuration Release
-```
-Używa `appsettings.json`. Wymaga ustawienia zmiennej środowiskowej `ConnectionStrings__KanbanConnectionString` lub sekretów do połączenia z Supabase.
-
-### Wymagania
-
-- **.NET SDK 9** (wymagane przez aktualne projekty)
-- Lokalny **PostgreSQL**:
-  - rekomendowane: **Docker Desktop** + `docker compose`
-  - alternatywnie: lokalna instalacja PostgreSQL 16/17
-
-### Baza danych (Docker)
-
-Jeśli masz Docker Desktop:
-
-```bash
-docker compose up -d
-```
-
-Domyślne parametry w `docker-compose.yml`:
-- DB: `kanbanlite`
-- user: `kanbanlite`
-- password: `kanbanlite`
-- port: `5432`
-
-### Baza danych (lokalna instalacja PostgreSQL) — wariant 2
-
-Jeśli instalujesz PostgreSQL lokalnie na Windows, upewnij się, że masz w PATH narzędzie `psql` (folder `...\PostgreSQL\XX\bin`).
-
-1) Ustaw hasło admina (z instalatora) jako `PGPASSWORD`:
-
-```powershell
-$env:PGPASSWORD="YOUR_POSTGRES_PASSWORD"
-```
-
-2) Utwórz rolę + bazę:
-
-```powershell
-.\scripts\setup-local-postgres.ps1
-```
-
-3) Zastosuj migracje:
-
-```powershell
-.\scripts\apply-migrations.ps1
-```
-
-### Migracje EF Core
-
-Migracje są w projekcie `src/DataAccess` (Code-First).
-
-#### Lokalnie (Development)
-Domyślnie używa localhost. Można uruchomić migracje:
-
-```powershell
-# Przez DbMigrator (Development = localhost)
-dotnet run --project src/DbMigrator
-
-# Lub przez dotnet-ef
-dotnet tool run dotnet-ef database update --project src/DataAccess --startup-project src/DbMigrator
-```
-
-#### Produkcja (Supabase)
-Ustaw connection string do Supabase przez zmienną środowiskową:
-
-```powershell
-$env:ConnectionStrings__KanbanConnectionString="Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=YOUR_PASSWORD;Pooling=true;Trust Server Certificate=true;"
-dotnet run --project src/DbMigrator --configuration Release
-```
-
-**Uwaga:** Nigdy nie commituj rzeczywistych connection stringów z hasłami do repozytorium. Używaj zmiennych środowiskowych lub sekretów.
-
-### CI/CD (GitHub Actions)
-
-Pipeline używa Supabase jako bazy danych. Wymagane sekrety w GitHub:
-
-| Secret | Opis |
-|--------|------|
-| `SUPABASE_CONNECTION_STRING` | Pełny connection string do Supabase |
-| `SUPABASE_URL` | URL projektu Supabase (np. `https://xxx.supabase.co`) |
-| `SUPABASE_PUBLISHABLE_KEY` | Klucz API Supabase (publishable) |
-
-#### Konfiguracja sekretów w GitHub:
-1. Przejdź do **Settings** → **Secrets and variables** → **Actions**
-2. Dodaj `SUPABASE_CONNECTION_STRING`:
-   ```
-   Host=db.xxx.supabase.co;Port=6543;Database=postgres;Username=postgres;Password=YOUR_PASSWORD;Pooling=true;Trust Server Certificate=true;
-   ```
-3. Dodaj `SUPABASE_PUBLISHABLE_KEY`:
-   ```
-   sb_publishable_YOUR_KEY
-   ```
-
-**Uwaga:** Zastąp `YOUR_PASSWORD` i `YOUR_KEY` rzeczywistymi wartościami z Twojego projektu Supabase.
-
-### Bezpieczeństwo
-
-⚠️ **WAŻNE**: Projekt został zaktualizowany, aby nie zawierał wrażliwych danych w repozytorium.
-
-- **Connection stringi** i **hasła** zostały usunięte z plików konfiguracyjnych
-- **Klucze API** i **URL-e Supabase** zostały usunięte z kodu źródłowego
-- Wszystkie wrażliwe dane powinny być konfigurowane przez:
-  - **Zmienne środowiskowe** (lokalnie)
-  - **Sekrety GitHub Actions** (CI/CD)
-  - **Azure Key Vault** lub podobne rozwiązania (produkcja)
-
-Pliki, które wymagają konfiguracji przed uruchomieniem:
-- `src/Web/appsettings.json` - connection string i klucze Supabase
-- `src/Web/appsettings.Development.json` - connection string do lokalnej bazy
-- `src/DbMigrator/appsettings.json` - connection string do migracji
-- `tests/KanbanLite.E2E.Tests/appsettings.e2e.*.json` - konfiguracja testów E2E
-
-### Struktura solucji
-
-- `KanbanLite.sln` — solucja
-- `src/Web` — **warstwa prezentacji** (Blazor Server), kontrolery API, widoki
-- `src/DataAccess` — encje, `AppDbContext`, migracje
-- `src/Application` — **warstwa aplikacyjna** (serwisy/use case’y in-process), **Result Pattern**, RBAC po stronie serwisu
-- `src/DbMigrator` — minimalny projekt startowy do uruchamiania migracji
-- `src/Types.cs` — współdzielone typy (DTO, Command Models)
-- `tests/KanbanLite.Application.UnitTests` — testy jednostkowe warstwy Application (xUnit + FluentAssertions + NSubstitute)
-- `tests/KanbanLite.E2E.Tests` — testy end-to-end (Playwright)
-- `tests/DbSeed.IntegrationTests` — testy integracyjne / seedowanie danych
-
-## Stan implementacji (backend in-process)
-
-**Backend warstwy Application jest zaimplementowany i gotowy do użycia.**
-
-### Zaimplementowane serwisy
-
-- **`BatchService`**: Kanban (projekcja join bez **N+1**), zmiana statusu i etapu (walidacje + audyt transakcyjny + soft limit 20), `GetInProgressCountAsync`.
-- **`ProjectService`**: lista projektów (paginacja + filtrowanie `IsCompleted`), szczegóły projektu (projekcja bez **N+1**), „Wyślij do klienta” (walidacja gotowości + RBAC Manager-only).
-- **`BatchAuditService`**: stronicowany odczyt audytu batcha (RBAC Manager+Operator).
-- **`OrderService`**: tworzenie zlecenia (walidacje + transakcja) + automatyczny projekt i batche wg aktywnej reguły splitu, lista zleceń (filtrowanie po `dueFrom/dueTo` i `q` obejmujące `orderNumber`/`projectNumber`), szczegóły zlecenia.
-- **`ProductFormatService`**: lookup aktywnych formatów (Manager+Operator), zarządzanie formatami (Manager-only: CRUD + deaktywacja).
-- **`BatchSplitRuleService`**: zarządzanie regułami splitu (Manager-only: CRUD + aktywacja/dezaktywacja) + walidacja braku overlapów aktywnych zakresów.
-- **`DashboardService`**: dashboard Managera (agregacje po statusach/etapach na projektach aktywnych) + lista pilnych (due < dziś+7) + ostrzeżenie soft‑limit `InProgress > 20`.
-
-### Rejestracja DI
-
-- **`KanbanLite.Application.DependencyInjection.AddKanbanLiteApplication()`**: rejestruje wszystkie serwisy Application.
-- **Wymagane w hoście**: rejestracja `ICurrentUser` (np. `ClaimsPrincipalCurrentUser` z `IHttpContextAccessor` dla ASP.NET Core/Blazor Server).
-- **Testy jednostkowe**: 24 testy przechodzą (`tests/KanbanLite.Application.UnitTests`).
-
-## Dostępne skrypty
-
-W repo są skrypty PowerShell w `scripts/` (m.in. przygotowanie lokalnego Postgresa i zastosowanie migracji).
-
-## Zakres (scope)
+- Logowanie i role (Manager/Operator)
+- Tworzenie zleceń (walidacje: 1–100000 sztuk, termin ≥ 7 dni)
+- Automatyczny podział na batche wg reguł
+- Zarządzanie batchami (zmiana statusu i etapu)
+  - **Statusy**: New → InProgress → Done
+  - **Etapy produkcji**: 5 etapów (zmiana tylko „do przodu")
+  - **Soft limit 20**: ostrzeżenie gdy InProgress > 20
+- Wysyłka do klienta (Manager-only, gdy wszystkie batche gotowe)
+- Audyt zmian (kto/kiedy)
+- Dashboard managera (metryki, zlecenia pilne, ostrzeżenia)
+- Konfiguracja formatów i reguł splitowania
 
 ### Widoki
 
-- **Kanban**: lista/tabela batchy z lookupami / dropdownami do wyboru **statusu** i **etapu**, z:
-  - numerem zlecenia,
-  - numerem batcha,
-  - liczbą sztuk,
-  - progress barem,
-  - linkiem do projektu.
-- **Panel Managera** (tylko Manager):
-  - dashboard metryk operacyjnych,
-  - konfiguracja reguł batchowania,
-  - CRUD formatów produktów,
-  - historia zleceń (archiwum).
+- **Kanban**: tabela batchy z możliwością zmiany statusu/etapu, progress bar, link do zlecenia
+- **Panel Managera**: dashboard metryk, konfiguracja, zarządzanie formatami, historia zleceń
 
-### Funkcje (MVP)
+## Stos technologiczny
 
-- logowanie i RBAC (Manager/Operator),
-- tworzenie zlecenia (ilość, format, termin; walidacje: 1–100000, termin ≥ dziś + 7 dni),
-- automatyczny podział zlecenia na batche wg tabeli reguł,
-- zarządzanie batchami (statusy, etapy, postęp),
-- soft limit 20 batchy `InProgress` (ostrzeżenie),
-- „Wyślij do klienta” z warunkiem gotowości,
-- audyt zmian batchy.
+- .NET 9 (ASP.NET Core)
+- Blazor Server + MudBlazor (UI)
+- PostgreSQL + EF Core (baza danych)
+- ASP.NET Core Identity (logowanie, RBAC)
+- xUnit + Playwright (testy)
 
-## Status projektu
+## Struktura projektu
 
-- **Status**: MVP zaimplementowane (Backend + Frontend + Testy E2E). Projekt gotowy do uruchomienia.
-- **Harmonogram**: Zrealizowano zgodnie z planem.
+- `KanbanLite.sln` — solucja
+- `src/Web` — Blazor Server UI, kontrolery, widoki
+- `src/DataAccess` — EF Core, migracje, repozytoria
+- `src/Application` — serwisy biznesowe, RBAC, Result Pattern
+- `src/DbMigrator` — narzędzie do migracji bazy
+- `src/Types.cs` — wspólne typy (DTO, Commands)
+- `tests/KanbanLite.Application.UnitTests` — testy jednostkowe
+- `tests/KanbanLite.E2E.Tests` — testy end-to-end (Playwright)
 
-## Licencja
+## Status
 
-**Nie określono** (brak pliku `LICENSE` w repo).
+**MVP zaimplementowane i gotowe do uruchomienia**
 
----
-
-## Deployments & Releases
-
-### Strategia Wdrożeń
-
-Projekt wykorzystuje podejście **Deployment ≠ Release**:
-- **Deployment**: automatyczne wdrożenie kodu na serwer (CI/CD)
-- **Release**: kontrolowane udostępnianie funkcji użytkownikom (Feature Flags)
-
-### Feature Flags
-
-System Feature Flags pozwala na bezpieczne wdrażanie niedokończonych funkcji na produkcję:
-
-```csharp
-// Użycie w kodzie
-if (_featureFlagService.IsEnabled(FeatureNames.Dashboard))
-{
-    // Pokaż Dashboard
-}
-```
-
-Konfiguracja w `appsettings.json`:
-```json
-{
-  "FeatureFlags": {
-    "Production": {
-      "Dashboard": true,
-      "Audit": true,
-      "Configuration": true,
-      "Kanban": true
-    }
-  }
-}
-```
-
-Środowisko określane jest przez zmienne: `APP_ENVIRONMENT` → `ASPNETCORE_ENVIRONMENT` → `DOTNET_ENVIRONMENT`.
-
-### Konteneryzacja (Docker)
-
-Projekt zawiera `Dockerfile` dla multi-stage build:
-
-```bash
-# Budowanie obrazu
-docker build -t kanbanlite:latest .
-
-# Uruchomienie kontenera
-docker run -d -p 8080:8080 \
-  -e ConnectionStrings__KanbanConnectionString="..." \
-  -e Supabase__Url="..." \
-  -e Supabase__Key="..." \
-  kanbanlite:latest
-```
-
-### CI/CD Pipeline
-
-| Workflow | Trigger | Opis |
-|----------|---------|------|
-| `pull-request.yml` | PR do main/master | Lint + Unit Tests + E2E Tests |
-| `master.yml` | Push do main/master | Lint + Unit Tests + Docker Build & Push |
-
-### Hosting (Rekomendacje)
-
-Dla projektu .NET Blazor Server rekomendowane platformy:
-
-1. **DigitalOcean App Platform** - prostota, integracja z GHCR
-2. **Azure App Service** - natywne wsparcie .NET
-3. **Railway / Render** - alternatywy z darmowym tier
-
-### Wymagane Sekrety GitHub
-
-| Secret | Opis |
-|--------|------|
-| `SUPABASE_CONNECTIONSTRING_KEY` | Connection string do bazy Supabase |
-| `SUPABASE_PUBLISHABLE_KEY` | Klucz API Supabase |
-| `DIGITALOCEAN_ACCESS_TOKEN` | (opcjonalnie) Token API DigitalOcean |
-| `DIGITALOCEAN_APP_ID` | (opcjonalnie) ID aplikacji na DO |
-
-
+- Backend w pełni zaimplementowany
+- Frontend (Blazor Server) zaimplementowany
+- Testy E2E pokrywają ścieżki krytyczne
+- 24 testy jednostkowe przechodzą
