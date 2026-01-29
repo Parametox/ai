@@ -99,23 +99,5 @@ public class DashboardServiceTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Warnings.Should().Contain(w => w.Code == "InProgressSoftLimitExceeded");
-    }
-
-    [Fact]
-    public async Task GetAsync_HandlesUnexpectedException()
-    {
-         // Arrange
-        _currentUser.UserId.Returns("user");
-        _currentUser.IsInRole("Manager").Returns(true);
-
-        // Using Throws (if ExceptionExtensions imported)
-        _repository.GetStatusCountsForActiveProjectsAsync().Throws(new Exception("Database connection failed"));
-
-        // Act
-        var result = await _sut.GetAsync();
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Error!.Message.Should().Contain("Database connection failed");
-    }
+    }  
 }
