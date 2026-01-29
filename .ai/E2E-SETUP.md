@@ -149,6 +149,10 @@ Użytkownicy testowi:
 - **menago** / **menago** (Manager)
 - **operator** / **operator** (Operator)
 
+#### Problem: Testy CreateOrder/FullWorkflow – timeout na wyborze formatu produktu
+
+Testy tworzenia zlecenia wymagają **co najmniej jednego aktywnego formatu produktu** w bazie (tabela `product_formats` w Supabase). Jeśli lista formatów jest pusta, test czeka na pojawienie się opcji w dropdown i kończy się timeoutem. W Supabase utwórz ręcznie lub przez Panel Managera → Formaty produktów jeden format (np. „A4”), aby testy `Manager_CanCreateNewOrder` i `Manager_FullWorkflow_*` przechodziły.
+
 #### Problem: Aplikacja nie startuje
 
 Sprawdź logi w sekcji "Start application in background" i "Wait for application to be ready".

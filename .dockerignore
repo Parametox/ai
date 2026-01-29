@@ -1,0 +1,60 @@
+# Pliki git
+.git/
+.gitignore
+
+# Foldery IDE
+.vs/
+.vscode/
+.idea/
+.cursor/
+
+# Dokumentacja i AI
+.ai/
+docs/
+
+# Artefakty build
+**/bin/
+**/obj/
+**/out/
+
+# Testy (nie potrzebne w obrazie produkcyjnym)
+tests/
+
+# Pliki lokalne
+*.user
+*.suo
+*.log
+web_*.log
+
+# Sekrety i konfiguracja lokalna
+**/.env
+**/.env.*
+**/appsettings.Development.json
+**/secrets.json
+
+# Node modules (jeśli używane)
+**/node_modules/
+
+# Pliki tymczasowe
+*.tmp
+*.temp
+*.swp
+*~
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# GitHub
+.github/
+
+# Skrypty (nie potrzebne w runtime)
+scripts/
+
+# README i dokumenty
+README.md
+*.md
+
+# Pliki rozwiązania (nie potrzebne w runtime)
+*.sln

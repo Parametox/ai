@@ -1,15 +1,13 @@
-using DataAccess;
 using DataAccess.Enums;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
+using KanbanLite.Application.Services.SupabaseModels;
 using KanbanLite.Contracts;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IProjectService
+public sealed class ProjectService(IProjectRepository projectRepository, IBatchRepository batchRepository, ICurrentUser currentUser) : IProjectService
 {
     public async Task<Result<PagedResult<ProjectListItemDto>>> GetAsync(ProjectQuery query, CancellationToken ct = default)
     {
@@ -38,37 +36,18 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var baseQuery =
-                from p in db.Projects.AsNoTracking()
-                join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
-                select new { p, o };
+            var (items, total) = await projectRepository.GetProjectsAsync(query, page, pageSize, ct);
 
-            if (query.IsCompleted is not null)
-            {
-                var isCompleted = query.IsCompleted.Value;
-                baseQuery = baseQuery.Where(x => x.p.IsCompleted == isCompleted);
-            }
-
-            var total = await baseQuery.LongCountAsync(ct);
-
-            var items = await baseQuery
-                .OrderByDescending(x => x.o.DueDate)
-                .ThenByDescending(x => x.p.Id)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(x => new ProjectListItemDto(
-                    x.p.Id,
-                    x.p.ProjectNumber,
-                    x.o.OrderNumber,
-                    x.o.DueDate,
-                    x.p.IsCompleted
-                ))
-                .ToListAsync(ct);
+            var resultItems = items.Select(p => new ProjectListItemDto(
+                p.Id,
+                p.ProjectNumber ?? "",
+                p.Order?.OrderNumber ?? "",
+                p.Order != null ? DateOnly.FromDateTime(p.Order.DueDate) : DateOnly.MinValue,
+                p.IsCompleted
+            )).ToList();
 
             return Result<PagedResult<ProjectListItemDto>>.Ok(new PagedResult<ProjectListItemDto>(
-                items,
+                resultItems,
                 page,
                 pageSize,
                 total
@@ -78,10 +57,11 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.WriteLine(ex);
             return Result<PagedResult<ProjectListItemDto>>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas pobierania listy projektów."));
+                AppError.Unexpected($"Nieoczekiwany błąd podczas pobierania listy projektów: {ex.Message}"));
         }
     }
 
@@ -95,82 +75,64 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var header = await (
-                from p in db.Projects.AsNoTracking()
-                join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
-                join pf in db.ProductFormats.AsNoTracking() on o.ProductFormatId equals pf.Id
-                where p.Id == id
-                select new
-                {
-                    ProjectId = p.Id,
-                    p.ProjectNumber,
-                    p.IsCompleted,
-                    OrderId = o.Id,
-                    o.OrderNumber,
-                    o.Quantity,
-                    o.DueDate,
-                    ProductFormatName = pf.Name
-                }
-            ).SingleOrDefaultAsync(ct);
-
-            if (header is null)
+            var project = await projectRepository.GetByIdAsync(id, ct);
+            if (project is null)
             {
                 return Result<ProjectDetailsDto>.Fail(AppError.NotFound($"Projekt o id={id} nie istnieje."));
             }
 
-            var batches = await db.Batches.AsNoTracking()
-                .Where(b => b.ProjectId == id)
-                .OrderBy(b => b.BatchNo)
-                .Select(b => new ProjectBatchSummaryDto(
-                    b.Id,
-                    b.BatchNo,
-                    b.Quantity,
-                    b.Status,
-                    b.Stage,
-                    ProgressPercentFromStage(b.Stage),
-                    b.UpdatedAt
-                ))
-                .ToListAsync(ct);
+            var batchDtos = project.Batches.OrderBy(b => b.BatchNo).Select(b => new ProjectBatchSummaryDto(
+                b.Id,
+                b.BatchNo,
+                b.Quantity,
+                Enum.TryParse<BatchStatus>(b.Status, out var status) ? status : BatchStatus.New,
+                (ProductionStage)b.Stage,
+                ProgressPercentFromStage((ProductionStage)b.Stage),
+                b.UpdatedAt
+            )).ToList();
 
-            var canShip =
-                header.IsCompleted
-                || (batches.Count > 0 && batches.All(b => b.Status == BatchStatus.Done && b.Stage == ProductionStage.Ship));
+            var allBatchesDone = project.Batches.Count > 0 && project.Batches.All(
+                b => b.Status == BatchStatus.Done.ToString() && b.Stage == (short)ProductionStage.Ship);
+            
+            string? notReadyReason = null;
+            if (project.Batches.Count == 0) notReadyReason = "Brak batchy.";
+            else if (!allBatchesDone) notReadyReason = "Nie wszystkie batche są gotowe.";
+            else if (project.IsCompleted) notReadyReason = "Już wysłany.";
 
-            var reason = canShip
-                ? null
-                : "Nie wszystkie batche są zakończone (Status=Done) na etapie wysyłki (Stage=Ship).";
+            bool canShip = !project.IsCompleted && allBatchesDone;
 
-            return Result<ProjectDetailsDto>.Ok(new ProjectDetailsDto(
-                Id: header.ProjectId,
-                ProjectNumber: header.ProjectNumber,
-                Order: new ProjectOrderSummaryDto(
-                    Id: header.OrderId,
-                    OrderNumber: header.OrderNumber,
-                    Quantity: header.Quantity,
-                    DueDate: header.DueDate,
-                    ProductFormatName: header.ProductFormatName
-                ),
-                IsCompleted: header.IsCompleted,
-                Completion: new ProjectCompletionDto(canShip, reason),
-                Batches: batches
-            ));
+            var completionDto = new ProjectCompletionDto(canShip, notReadyReason);
+
+            var order = project.Order;
+            var orderSummary = new ProjectOrderSummaryDto(
+                project.OrderId,
+                order?.OrderNumber ?? "",
+                order?.Quantity ?? 0,
+                order != null ? DateOnly.FromDateTime(order.DueDate) : DateOnly.MinValue,
+                "" // ProductFormatName requires extra join
+            );
+
+            var dto = new ProjectDetailsDto(
+                project.Id,
+                project.ProjectNumber ?? "",
+                orderSummary,
+                project.IsCompleted,
+                completionDto,
+                batchDtos
+            );
+
+            return Result<ProjectDetailsDto>.Ok(dto);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            throw;
-        }
-        catch (Exception)
-        {
-            return Result<ProjectDetailsDto>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas pobierania szczegółów projektu."));
+            Console.WriteLine(ex);
+            return Result<ProjectDetailsDto>.Fail(AppError.Unexpected($"Błąd: {ex.Message}"));
         }
     }
 
     public async Task<Result<ShipProjectResult>> ShipToCustomerAsync(long projectId, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do wysyłki projektu do klienta.");
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do wysyłki projektu.");
         if (authError is not null)
         {
             return Result<ShipProjectResult>.Fail(authError);
@@ -178,9 +140,7 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var project = await db.Projects.SingleOrDefaultAsync(x => x.Id == projectId, ct);
+            var project = await projectRepository.GetByIdAsync(projectId, ct);
             if (project is null)
             {
                 return Result<ShipProjectResult>.Fail(AppError.NotFound($"Projekt o id={projectId} nie istnieje."));
@@ -191,16 +151,14 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
                 return Result<ShipProjectResult>.Fail(AppError.Conflict("Projekt jest już oznaczony jako wysłany do klienta."));
             }
 
-            var hasAnyBatches = await db.Batches.AsNoTracking().AnyAsync(x => x.ProjectId == projectId, ct);
-            if (!hasAnyBatches)
+            if (project.Batches == null || !project.Batches.Any())
             {
                 return Result<ShipProjectResult>.Fail(
                     AppError.ValidationFailed("Nie można wysłać projektu bez batchy."));
             }
 
-            var hasNotReadyBatches = await db.Batches.AsNoTracking().AnyAsync(
-                x => x.ProjectId == projectId && (x.Status != BatchStatus.Done || x.Stage != ProductionStage.Ship),
-                ct);
+            var hasNotReadyBatches = project.Batches.Any(
+                x => x.Status != BatchStatus.Done.ToString() || x.Stage != (short)ProductionStage.Ship);
 
             if (hasNotReadyBatches)
             {
@@ -216,63 +174,26 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
                         }));
             }
 
-            var now = DateTimeOffset.UtcNow;
+            project.IsCompleted = true;
+            project.CompletedAt = DateTimeOffset.UtcNow;
+            project.CompletedByUserId = currentUser.UserId!;
 
-            IDbContextTransaction? tx = null;
-            if (SupportsTransactions(db))
-            {
-                tx = await db.Database.BeginTransactionAsync(ct);
-            }
+            await projectRepository.UpdateAsync(project, ct);
 
-            try
-            {
-                project.IsCompleted = true;
-                project.CompletedAt = now;
-                project.CompletedByUserId = currentUser.UserId!;
-
-                await db.SaveChangesAsync(ct);
-
-                if (tx is not null)
-                {
-                    await tx.CommitAsync(ct);
-                }
-
-                return Result<ShipProjectResult>.Ok(new ShipProjectResult(
-                    Id: project.Id,
-                    IsCompleted: project.IsCompleted,
-                    CompletedAt: project.CompletedAt!.Value,
-                    CompletedByUserId: project.CompletedByUserId!
-                ));
-            }
-            finally
-            {
-                if (tx is not null)
-                {
-                    await tx.DisposeAsync();
-                }
-            }
+            return Result<ShipProjectResult>.Ok(new ShipProjectResult(
+                Id: project.Id,
+                IsCompleted: project.IsCompleted,
+                CompletedAt: project.CompletedAt!.Value,
+                CompletedByUserId: project.CompletedByUserId!
+            ));
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            throw;
-        }
-        catch (DbUpdateException)
-        {
-            return Result<ShipProjectResult>.Fail(
-                AppError.Conflict("Nie udało się oznaczyć projektu jako wysłany (konflikt lub naruszenie ograniczeń danych)."));
-        }
-        catch (Exception)
-        {
-            return Result<ShipProjectResult>.Fail(
+             Console.WriteLine(ex);
+             return Result<ShipProjectResult>.Fail(
                 AppError.Unexpected("Nieoczekiwany błąd podczas wysyłki projektu do klienta."));
         }
     }
-
-    private static bool SupportsTransactions(AppDbContext db)
-        => !string.Equals(
-            db.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.InMemory",
-            StringComparison.Ordinal);
 
     public async Task<Result> DeleteAsync(long projectId, CancellationToken ct = default)
     {
@@ -284,84 +205,29 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var project = await db.Projects.SingleOrDefaultAsync(x => x.Id == projectId, ct);
+            var project = await projectRepository.GetByIdAsync(projectId, ct);
             if (project is null)
             {
                 return Result.Fail(AppError.NotFound($"Projekt o id={projectId} nie istnieje."));
             }
 
-            IDbContextTransaction? tx = null;
-            if (SupportsTransactions(db))
-            {
-                tx = await db.Database.BeginTransactionAsync(ct);
-            }
+            // Must delete batches first due to FK constraints
+            await batchRepository.DeleteByProjectIdAsync(projectId, ct);
 
-            try
-            {
-                // Pobierz wszystkie batche projektu
-                var batches = await db.Batches
-                    .Where(x => x.ProjectId == projectId)
-                    .ToListAsync(ct);
-
-                if (batches.Any())
-                {
-                    // Pobierz wszystkie ID batchy
-                    var batchIds = batches.Select(b => b.Id).ToList();
-
-                    // Usuń wpisy audytu dla wszystkich batchy
-                    var auditLogs = await db.BatchAuditLog
-                        .Where(x => batchIds.Contains(x.BatchId))
-                        .ToListAsync(ct);
-                    
-                    if (auditLogs.Any())
-                    {
-                        db.BatchAuditLog.RemoveRange(auditLogs);
-                    }
-
-                    // Usuń wszystkie batche
-                    db.Batches.RemoveRange(batches);
-                }
-
-                // Usuń projekt
-                db.Projects.Remove(project);
-
-                await db.SaveChangesAsync(ct);
-
-                if (tx is not null)
-                {
-                    await tx.CommitAsync(ct);
-                }
-
-                return Result.Ok();
-            }
-            finally
-            {
-                if (tx is not null)
-                {
-                    await tx.DisposeAsync();
-                }
-            }
+            await projectRepository.DeleteAsync(projectId, ct);
+            return Result.Ok();
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            throw;
-        }
-        catch (DbUpdateException ex)
-        {
+            Console.WriteLine(ex);
             return Result.Fail(
-                AppError.Conflict("Nie udało się usunąć projektu (konflikt lub naruszenie ograniczeń danych)."+ ex.Message));
-        }
-        catch (Exception)
-        {
-            return Result.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas usuwania projektu."));
+                AppError.Unexpected($"Nieoczekiwany błąd podczas usuwania projektu: {ex.Message}"));
         }
     }
 
     private static int ProgressPercentFromStage(ProductionStage stage)
-        => stage switch
+    {
+        return stage switch
         {
             ProductionStage.Design => 20,
             ProductionStage.Print => 40,
@@ -370,5 +236,6 @@ public sealed class ProjectService(IDbContextFactory<AppDbContext> dbFactory, IC
             ProductionStage.Ship => 100,
             _ => 0
         };
+    }
 }
 

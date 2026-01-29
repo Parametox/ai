@@ -1,14 +1,13 @@
-using DataAccess;
-using DataAccess.Entities;
 using DataAccess.Enums;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
+using KanbanLite.Application.Services.SupabaseModels;
 using KanbanLite.Contracts;
-using Microsoft.EntityFrameworkCore;
+using Postgrest;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IBatchService
+public sealed class BatchService(IBatchRepository batchRepository, ICurrentUser currentUser) : IBatchService
 {
     private static readonly string[] AllowedRoles = ["Manager", "Operator"];
 
@@ -32,76 +31,36 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
         var page = query.Page < 1 ? 1 : query.Page;
         var pageSize = query.PageSize switch
         {
-            < 1 => 50,
+            < 1 => 20,
             > 200 => 200,
             _ => query.PageSize
         };
 
-        var q = string.IsNullOrWhiteSpace(query.Q) ? null : query.Q.Trim();
-
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            // Projekcja join: batches + projects + orders (bez N+1).
-            var baseQuery =
-                from b in db.Batches.AsNoTracking()
-                join p in db.Projects.AsNoTracking() on b.ProjectId equals p.Id
-                join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
-                where !p.IsCompleted
-                select new { b, p, o };
+            var (items, total) = await batchRepository.GetBatchesAsync(query, page, pageSize, ct);
 
-            if (query.Status is not null)
-            {
-                var status = query.Status.Value;
-                baseQuery = baseQuery.Where(x => x.b.Status == status);
-            }
+            // Map to DTO
+            var resultItems = items.Select(b => new KanbanBatchDto(
+                b.Id,
+                b.ProjectId,
+                b.Project?.ProjectNumber ?? "",
+                b.Project?.Order?.OrderNumber ?? "",
+                b.Project?.Order != null ? DateOnly.FromDateTime(b.Project.Order.DueDate) : DateOnly.MinValue,
+                b.BatchNo,
+                b.Quantity,
+                Enum.TryParse<BatchStatus>(b.Status, out var status) ? status : BatchStatus.New,
+                (ProductionStage)b.Stage,
+                ProgressPercentFromStage((ProductionStage)b.Stage),
+                b.UpdatedAt
+            )).ToList();
 
-            if (query.Stage is not null)
-            {
-                var stage = query.Stage.Value;
-                baseQuery = baseQuery.Where(x => x.b.Stage == stage);
-            }
+            var inProgressCount = await batchRepository.GetInProgressCountAsync(ct);
 
-            if (q is not null)
-            {
-                // Minimalna wyszukiwarka: po orderNumber i projectNumber (contains).
-                baseQuery = baseQuery.Where(x => x.o.OrderNumber.Contains(q) || x.p.ProjectNumber.Contains(q));
-            }
-
-            baseQuery = (query.Sort ?? KanbanSort.UpdatedAtDesc) switch
-            {
-                KanbanSort.DueDateAsc => baseQuery.OrderBy(x => x.o.DueDate).ThenByDescending(x => x.b.UpdatedAt),
-                KanbanSort.DueDateDesc => baseQuery.OrderByDescending(x => x.o.DueDate).ThenByDescending(x => x.b.UpdatedAt),
-                KanbanSort.UpdatedAtDesc => baseQuery.OrderByDescending(x => x.b.UpdatedAt),
-                _ => baseQuery.OrderByDescending(x => x.b.UpdatedAt)
-            };
-
-            var total = await baseQuery.LongCountAsync(ct);
-
-            var items = await baseQuery
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(x => new KanbanBatchDto(
-                    x.b.Id,
-                    x.p.Id,
-                    x.p.ProjectNumber,
-                    x.o.OrderNumber,
-                    x.o.DueDate,
-                    x.b.BatchNo,
-                    x.b.Quantity,
-                    x.b.Status,
-                    x.b.Stage,
-                    ProgressPercentFromStage(x.b.Stage),
-                    x.b.UpdatedAt
-                ))
-                .ToListAsync(ct);
-
-            var inProgressCount = await db.Batches.AsNoTracking().CountAsync(x => x.Status == BatchStatus.InProgress, ct);
             var warnings = CreateSoftLimitWarnings(inProgressCount);
 
             return Result<KanbanBatchesResult>.Ok(new KanbanBatchesResult(
-                items,
+                resultItems,
                 inProgressCount,
                 warnings,
                 page,
@@ -109,14 +68,11 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
                 total
             ));
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            throw;
-        }
-        catch (Exception)
-        {
+            // Logging would be good here
             return Result<KanbanBatchesResult>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas pobierania Kanbanu."));
+                AppError.Unexpected($"Błąd: {ex.Message}"));
         }
     }
 
@@ -125,7 +81,7 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
         UpdateBatchStatusRequest request,
         CancellationToken ct = default)
     {
-        if (request is null)
+         if (request is null)
         {
             return Result<UpdateBatchStatusResult>.Fail(
                 AppError.ValidationFailed("Brak payloadu żądania.", new Dictionary<string, IReadOnlyList<string>>
@@ -142,15 +98,13 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var batch = await db.Batches.SingleOrDefaultAsync(x => x.Id == batchId, ct);
+            var batch = await batchRepository.GetByIdAsync(batchId, ct);
             if (batch is null)
             {
-                return Result<UpdateBatchStatusResult>.Fail(AppError.NotFound($"Batch o id={batchId} nie istnieje."));
+                 return Result<UpdateBatchStatusResult>.Fail(AppError.NotFound($"Batch o id={batchId} nie istnieje."));
             }
 
-            var oldStatus = batch.Status;
+            if (!Enum.TryParse<BatchStatus>(batch.Status, out var oldStatus)) oldStatus = BatchStatus.New;
             var newStatus = request.NewStatus;
 
             var validationError = ValidateStatusTransition(oldStatus, newStatus);
@@ -161,14 +115,14 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
             if (oldStatus == newStatus)
             {
-                // No-op (ale zwracamy spójny wynik: stan + soft-limit).
-                var count = await db.Batches.CountAsync(x => x.Status == BatchStatus.InProgress, ct);
+                var count = await batchRepository.GetInProgressCountAsync(ct);
+                
                 var warnings = CreateSoftLimitWarnings(count);
                 return Result<UpdateBatchStatusResult>.Ok(new UpdateBatchStatusResult(
                     BatchId: batch.Id,
                     OldStatus: oldStatus,
                     NewStatus: newStatus,
-                    Stage: batch.Stage,
+                    Stage: (ProductionStage)batch.Stage,
                     UpdatedAt: batch.UpdatedAt,
                     InProgressCount: count,
                     Warnings: warnings
@@ -176,71 +130,40 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
             }
 
             var now = DateTimeOffset.UtcNow;
+            
+            await batchRepository.UpdateStatusAsync(batchId, newStatus.ToString(), now, ct);
 
-            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
-            if (SupportsTransactions(db))
-            {
-                // InMemory provider nie wspiera transakcji; w runtime używamy Npgsql, więc transakcja zadziała.
-                tx = await db.Database.BeginTransactionAsync(ct);
-            }
-
-            try
-            {
-            batch.Status = newStatus;
-            batch.UpdatedAt = now;
-
-            db.BatchAuditLog.Add(new BatchAuditLog
+            var log = new SupabaseBatchAuditLog
             {
                 BatchId = batch.Id,
                 ChangedAt = now,
                 ChangedByUserId = currentUser.UserId!,
-                OldStatus = oldStatus,
-                NewStatus = newStatus,
-                OldStage = null,
+                OldStatus = oldStatus.ToString(),
+                NewStatus = newStatus.ToString(),
+                OldStage = null, 
                 NewStage = null
-            });
+            };
+            await batchRepository.AddAuditLogAsync(log, ct);
 
-            await db.SaveChangesAsync(ct);
-
-            var inProgressCount = await db.Batches.CountAsync(x => x.Status == BatchStatus.InProgress, ct);
+            // Count
+            var inProgressCount = await batchRepository.GetInProgressCountAsync(ct);
+            
             var warningsAfter = CreateSoftLimitWarnings(inProgressCount);
-
-            if (tx is not null)
-            {
-                await tx.CommitAsync(ct);
-            }
 
             return Result<UpdateBatchStatusResult>.Ok(new UpdateBatchStatusResult(
                 BatchId: batch.Id,
                 OldStatus: oldStatus,
                 NewStatus: newStatus,
-                Stage: batch.Stage,
-                UpdatedAt: batch.UpdatedAt,
+                Stage: (ProductionStage)batch.Stage,
+                UpdatedAt: now,
                 InProgressCount: inProgressCount,
                 Warnings: warningsAfter
             ));
-            }
-            finally
-            {
-                if (tx is not null)
-                {
-                    await tx.DisposeAsync();
-                }
-            }
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (DbUpdateException)
+        catch (Exception ex)
         {
             return Result<UpdateBatchStatusResult>.Fail(
-                AppError.Conflict("Nie udało się zapisać zmiany statusu (konflikt lub naruszenie ograniczeń danych)."));
-        }
-        catch (Exception)
-        {
-            return Result<UpdateBatchStatusResult>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas zmiany statusu batcha."));
+                AppError.Unexpected($"Błąd: {ex.Message}"));
         }
     }
 
@@ -266,15 +189,14 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var batch = await db.Batches.SingleOrDefaultAsync(x => x.Id == batchId, ct);
+            var batch = await batchRepository.GetByIdAsync(batchId, ct);
+
             if (batch is null)
             {
                 return Result<UpdateBatchStageResult>.Fail(AppError.NotFound($"Batch o id={batchId} nie istnieje."));
             }
 
-            var oldStage = batch.Stage;
+            var oldStage = (ProductionStage)batch.Stage;
             var newStage = request.NewStage;
 
             var validationError = ValidateStageTransition(oldStage, newStage);
@@ -285,76 +207,48 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
             if (oldStage == newStage)
             {
+                Enum.TryParse<BatchStatus>(batch.Status, out var status);
                 return Result<UpdateBatchStageResult>.Ok(new UpdateBatchStageResult(
                     BatchId: batch.Id,
                     OldStage: oldStage,
                     NewStage: newStage,
-                    Status: batch.Status,
-                    ProgressPercent: ProgressPercentFromStage(batch.Stage),
+                    Status: status,
+                    ProgressPercent: ProgressPercentFromStage(oldStage),
                     UpdatedAt: batch.UpdatedAt
                 ));
             }
 
             var now = DateTimeOffset.UtcNow;
 
-            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
-            if (SupportsTransactions(db))
-            {
-                tx = await db.Database.BeginTransactionAsync(ct);
-            }
+            await batchRepository.UpdateStageAsync(batchId, (short)newStage, now, ct);
 
-            try
-            {
-            batch.Stage = newStage;
-            batch.UpdatedAt = now;
-
-            db.BatchAuditLog.Add(new BatchAuditLog
+            var log = new SupabaseBatchAuditLog
             {
                 BatchId = batch.Id,
                 ChangedAt = now,
                 ChangedByUserId = currentUser.UserId!,
                 OldStatus = null,
                 NewStatus = null,
-                OldStage = oldStage,
-                NewStage = newStage
-            });
+                OldStage = (short)oldStage,
+                NewStage = (short)newStage
+            };
+            await batchRepository.AddAuditLogAsync(log, ct);
 
-            await db.SaveChangesAsync(ct);
-            if (tx is not null)
-            {
-                await tx.CommitAsync(ct);
-            }
+            Enum.TryParse<BatchStatus>(batch.Status, out var currentStatus);
 
             return Result<UpdateBatchStageResult>.Ok(new UpdateBatchStageResult(
                 BatchId: batch.Id,
                 OldStage: oldStage,
                 NewStage: newStage,
-                Status: batch.Status,
-                ProgressPercent: ProgressPercentFromStage(batch.Stage),
-                UpdatedAt: batch.UpdatedAt
+                Status: currentStatus,
+                ProgressPercent: ProgressPercentFromStage(newStage),
+                UpdatedAt: now
             ));
-            }
-            finally
-            {
-                if (tx is not null)
-                {
-                    await tx.DisposeAsync();
-                }
-            }
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (DbUpdateException)
+        catch (Exception ex)
         {
             return Result<UpdateBatchStageResult>.Fail(
-                AppError.Conflict("Nie udało się zapisać zmiany etapu (konflikt lub naruszenie ograniczeń danych)."));
-        }
-        catch (Exception)
-        {
-            return Result<UpdateBatchStageResult>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas zmiany etapu batcha."));
+                AppError.Unexpected($"Błąd: {ex.Message}"));
         }
     }
 
@@ -368,14 +262,9 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var count = await db.Batches.AsNoTracking().CountAsync(x => x.Status == BatchStatus.InProgress, ct);
+            var count = await batchRepository.GetInProgressCountAsync(ct);
+
             return Result<int>.Ok(count);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
         }
         catch (Exception)
         {
@@ -400,12 +289,6 @@ public sealed class BatchService(IDbContextFactory<AppDbContext> dbFactory, ICur
 
         return AppError.Forbidden("Brak uprawnień do operacji na batchach.");
     }
-
-    private static bool SupportsTransactions(AppDbContext db)
-        => !string.Equals(
-            db.Database.ProviderName,
-            "Microsoft.EntityFrameworkCore.InMemory",
-            StringComparison.Ordinal);
 
     private static AppError? ValidateStatusTransition(BatchStatus oldStatus, BatchStatus newStatus)
     {

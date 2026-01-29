@@ -11,44 +11,32 @@ public partial class Dashboard
 {
     [Inject] private ISessionService SessionService { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
-    
+
     private DashboardDto? dashboardData;
     private bool loadingDashboard = true;
     private bool loadingOrders = false;
     private bool loadingFormats = false;
     private bool loadingRules = false;
     private bool loadingProjects = false;
-    
+
     private MudTable<OrderListItemDto>? ordersTable;
     private MudTable<ProductFormatDto>? formatsTable;
     private MudTable<BatchSplitRuleDto>? rulesTable;
     private MudTable<ProjectListItemDto>? projectsTable;
-    
+
     // Filtry historii zleceń
     private string orderSearchQuery = string.Empty;
     private DateTime? orderDueFrom;
     private DateTime? orderDueTo;
-    
+
     // Filtry formatów produktów
     private bool showInactiveFormats = false;
-    
+
     // Filtry projektów
     private bool? projectFilterCompleted = null;
 
     protected override async Task OnInitializedAsync()
     {
-        if (!SessionService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
-        
-        if (!SessionService.IsInRole("Manager"))
-        {
-            Navigation.NavigateTo("/kanban", replace: true);
-            return;
-        }
-        
         await LoadDashboardData();
     }
 
@@ -58,7 +46,7 @@ public partial class Dashboard
         {
             loadingDashboard = true;
             var result = await DashboardService.GetAsync();
-            
+
             if (result.IsSuccess)
             {
                 dashboardData = result.Value;
@@ -71,6 +59,7 @@ public partial class Dashboard
         catch (Exception ex)
         {
             Snackbar.Add($"Wystąpił błąd: {ex.Message}", Severity.Error);
+            throw;
         }
         finally
         {
@@ -83,7 +72,7 @@ public partial class Dashboard
         try
         {
             loadingOrders = true;
-            
+
             var query = new OrderQuery
             {
                 Q = string.IsNullOrWhiteSpace(orderSearchQuery) ? null : orderSearchQuery.Trim(),
@@ -94,7 +83,7 @@ public partial class Dashboard
             };
 
             var result = await OrderService.GetAsync(query);
-            
+
             if (result.IsSuccess)
             {
                 return new TableData<OrderListItemDto>
@@ -142,7 +131,7 @@ public partial class Dashboard
         try
         {
             loadingFormats = true;
-            
+
             var query = new ProductFormatQuery
             {
                 IsActive = showInactiveFormats ? null : true,
@@ -151,7 +140,7 @@ public partial class Dashboard
             };
 
             var result = await ProductFormatService.GetAsync(query);
-            
+
             if (result.IsSuccess)
             {
                 return new TableData<ProductFormatDto>
@@ -189,7 +178,7 @@ public partial class Dashboard
     {
         var parameters = new DialogParameters();
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        
+
         var dialog = await DialogService.ShowAsync<ProductFormatDialog>("Dodaj nowy format produktu", parameters, options);
         var result = await dialog.Result;
 
@@ -201,13 +190,13 @@ public partial class Dashboard
 
     private async Task OpenEditProductFormatDialog(ProductFormatDto format)
     {
-        var parameters = new DialogParameters 
-        { 
+        var parameters = new DialogParameters
+        {
             ["ProductFormat"] = format,
             ["IsEdit"] = true
         };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        
+
         var dialog = await DialogService.ShowAsync<ProductFormatDialog>("Edytuj format produktu", parameters, options);
         var result = await dialog.Result;
 
@@ -252,10 +241,10 @@ public partial class Dashboard
         try
         {
             loadingRules = true;
-            
+
             var query = new BatchSplitRuleQuery();
             var result = await BatchSplitRuleService.GetAsync(query);
-            
+
             if (result.IsSuccess)
             {
                 // Client-side pagination for rules (usually small dataset)
@@ -299,7 +288,7 @@ public partial class Dashboard
     {
         var parameters = new DialogParameters();
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        
+
         var dialog = await DialogService.ShowAsync<BatchSplitRuleDialog>("Dodaj nową regułę podziału", parameters, options);
         var result = await dialog.Result;
 
@@ -311,13 +300,13 @@ public partial class Dashboard
 
     private async Task OpenEditBatchRuleDialog(BatchSplitRuleDto rule)
     {
-        var parameters = new DialogParameters 
-        { 
+        var parameters = new DialogParameters
+        {
             ["BatchSplitRule"] = rule,
             ["IsEdit"] = true
         };
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        
+
         var dialog = await DialogService.ShowAsync<BatchSplitRuleDialog>("Edytuj regułę podziału", parameters, options);
         var result = await dialog.Result;
 
@@ -373,7 +362,7 @@ public partial class Dashboard
         try
         {
             loadingProjects = true;
-            
+
             var query = new ProjectQuery
             {
                 IsCompleted = projectFilterCompleted,
@@ -382,7 +371,7 @@ public partial class Dashboard
             };
 
             var result = await ProjectService.GetAsync(query);
-            
+
             if (result.IsSuccess)
             {
                 return new TableData<ProjectListItemDto>
@@ -465,7 +454,7 @@ public static class DateTimeExtensions
     {
         return dateTime.HasValue ? DateOnly.FromDateTime(dateTime.Value) : null;
     }
-    
+
     public static DateOnly ToDateOnly(this DateTime dateTime)
     {
         return DateOnly.FromDateTime(dateTime);

@@ -1,7 +1,9 @@
 using FluentValidation;
+using KanbanLite.Application.FeatureFlags;
 using KanbanLite.Application.Services;
 using KanbanLite.Application.Security;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using System.Reflection;
 
 namespace KanbanLite.Application;
@@ -30,19 +32,30 @@ public static class DependencyInjection
     /// do implementacji <see cref="ICurrentUser"/>.
     /// </para>
     /// </remarks>
-    public static IServiceCollection AddKanbanLiteApplication(this IServiceCollection services)
+    public static IServiceCollection AddKanbanLiteApplication(this IServiceCollection services, IConfiguration? configuration = null)
     {
+        // Register Feature Flags
+        var featureFlagConfig = configuration?.GetSection("FeatureFlags").Get<FeatureFlagConfiguration>();
+        services.AddSingleton<IFeatureFlagService>(new FeatureFlagService(featureFlagConfig));
+
         // Register services
+        services.AddScoped<IBatchRepository, SupabaseBatchRepository>();
         services.AddScoped<IBatchService, BatchService>();
+        services.AddScoped<IProjectRepository, SupabaseProjectRepository>();
         services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IOrderRepository, SupabaseOrderRepository>();
+        services.AddScoped<IProductFormatRepository, SupabaseProductFormatRepository>();
+        services.AddScoped<IBatchSplitRuleRepository, SupabaseBatchSplitRuleRepository>();
+        services.AddScoped<IBatchAuditRepository, SupabaseBatchAuditRepository>();
         services.AddScoped<IBatchAuditService, BatchAuditService>();
+        services.AddScoped<IDashboardRepository, SupabaseDashboardRepository>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IProductFormatService, ProductFormatService>();
         services.AddScoped<IBatchSplitRuleService, BatchSplitRuleService>();
 
         // Register AutoMapper
-        services.AddAutoMapper(Assembly.GetExecutingAssembly());
+        services.AddAutoMapper(cfg => { }, Assembly.GetExecutingAssembly());
 
         // Register FluentValidation validators
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());

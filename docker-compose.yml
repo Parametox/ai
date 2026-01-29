@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: kanbanlite-postgres
+    environment:
+      POSTGRES_DB: kanbanlite
+      POSTGRES_USER: kanbanlite
+      POSTGRES_PASSWORD: kanbanlite
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kanbanlite -d kanbanlite"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Opcjonalnie: lokalne uruchomienie aplikacji w kontenerze
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: kanbanlite-web
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - ASPNETCORE_ENVIRONMENT=Development
+  #     - ConnectionStrings__KanbanConnectionString=Host=postgres;Port=5432;Database=kanbanlite;Username=kanbanlite;Password=kanbanlite
+  #     - Supabase__Url=${SUPABASE_URL}
+  #     - Supabase__Key=${SUPABASE_KEY}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+volumes:
+  postgres_data:

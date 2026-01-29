@@ -1,14 +1,14 @@
-using DataAccess;
-using DataAccess.Entities;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
+using KanbanLite.Application.Services.SupabaseModels;
 using KanbanLite.Contracts;
-using Microsoft.EntityFrameworkCore;
 using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IProductFormatService
+public sealed class ProductFormatService(
+    IProductFormatRepository repository,
+    ICurrentUser currentUser) : IProductFormatService
 {
     public async Task<Result<PagedResult<ProductFormatDto>>> GetAsync(ProductFormatQuery query, CancellationToken ct = default)
     {
@@ -35,36 +35,14 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
             _ => query.PageSize
         };
 
-        var q = string.IsNullOrWhiteSpace(query.Q) ? null : query.Q.Trim();
-
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var formats = db.ProductFormats.AsNoTracking();
+            var (items, total) = await repository.GetAsync(query, page, pageSize, ct);
 
-            if (query.IsActive is not null)
-            {
-                var isActive = query.IsActive.Value;
-                formats = formats.Where(x => x.IsActive == isActive);
-            }
-
-            if (q is not null)
-            {
-                formats = formats.Where(x => x.Name.Contains(q));
-            }
-
-            var total = await formats.LongCountAsync(ct);
-
-            var items = await formats
-                .OrderBy(x => x.Name)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(x => new ProductFormatDto(x.Id, x.Name, x.IsActive, x.CreatedAt))
-                .ToListAsync(ct);
+            var dtos = items.Select(x => new ProductFormatDto(x.Id, x.Name ?? "", x.IsActive, x.CreatedAt)).ToList();
 
             return Result<PagedResult<ProductFormatDto>>.Ok(new PagedResult<ProductFormatDto>(
-                items,
+                dtos,
                 page,
                 pageSize,
                 total
@@ -74,10 +52,11 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.WriteLine(ex);
             return Result<PagedResult<ProductFormatDto>>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas pobierania formatów produktów."));
+                AppError.Unexpected($"Nieoczekiwany błąd podczas pobierania formatów produktów: {ex.Message}"));
         }
     }
 
@@ -91,24 +70,20 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var items = await db.ProductFormats.AsNoTracking()
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.Name)
-                .Select(x => new ProductFormatLookupDto(x.Id, x.Name))
-                .ToListAsync(ct);
+            var items = await repository.GetActiveLookupAsync(ct);
+            var dtos = items.Select(x => new ProductFormatLookupDto(x.Id, x.Name ?? "")).ToList();
 
-            return Result<IReadOnlyList<ProductFormatLookupDto>>.Ok(items);
+            return Result<IReadOnlyList<ProductFormatLookupDto>>.Ok(dtos);
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.WriteLine(ex);
             return Result<IReadOnlyList<ProductFormatLookupDto>>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas pobierania lookupu formatów produktów."));
+                AppError.Unexpected($"Nieoczekiwany błąd podczas pobierania lookupu formatów produktów: {ex.Message}"));
         }
     }
 
@@ -142,32 +117,29 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            // Note: DB unique constraint handling via Supabase usually returns specific error code 23505
             
             var now = DateTimeOffset.UtcNow;
-            var entity = new ProductFormat
+            var entity = new SupabaseProductFormat
             {
                 Name = name,
                 IsActive = request.IsActive,
                 CreatedAt = now
             };
 
-            db.ProductFormats.Add(entity);
-            await db.SaveChangesAsync(ct);
+            await repository.CreateAsync(entity, ct);
 
-            return Result<ProductFormatDto>.Ok(new ProductFormatDto(entity.Id, entity.Name, entity.IsActive, entity.CreatedAt));
+            return Result<ProductFormatDto>.Ok(new ProductFormatDto(entity.Id, entity.Name ?? "", entity.IsActive, entity.CreatedAt));
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            throw;
-        }
-        catch (DbUpdateException)
-        {
-            return Result<ProductFormatDto>.Fail(
-                AppError.Conflict("Nie udało się utworzyć formatu (prawdopodobnie nazwa już istnieje)."));
-        }
-        catch (Exception)
-        {
+            // Checking for unique constraint violation in Supabase/Postgrest exception is possible but keeping it generic for now or checking message
+            if (ex.Message.Contains("23505")) // PostgreSQL unique violation code
+            {
+                 return Result<ProductFormatDto>.Fail(
+                    AppError.Conflict("Nie udało się utworzyć formatu (prawdopodobnie nazwa już istnieje)."));
+            }
+
             return Result<ProductFormatDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas tworzenia formatu produktu."));
         }
     }
@@ -202,9 +174,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var entity = await db.ProductFormats.SingleOrDefaultAsync(x => x.Id == id, ct);
+            var entity = await repository.GetByIdAsync(id, ct);
             if (entity is null)
             {
                 return Result<ProductFormatDto>.Fail(AppError.NotFound($"Format produktu o id={id} nie istnieje."));
@@ -213,21 +183,17 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
             entity.Name = name;
             entity.IsActive = request.IsActive;
 
-            await db.SaveChangesAsync(ct);
+            await repository.UpdateAsync(entity, ct);
 
-            return Result<ProductFormatDto>.Ok(new ProductFormatDto(entity.Id, entity.Name, entity.IsActive, entity.CreatedAt));
+            return Result<ProductFormatDto>.Ok(new ProductFormatDto(entity.Id, entity.Name ?? "", entity.IsActive, entity.CreatedAt));
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) 
         {
-            throw;
-        }
-        catch (DbUpdateException)
-        {
-            return Result<ProductFormatDto>.Fail(
-                AppError.Conflict("Nie udało się zaktualizować formatu (prawdopodobnie nazwa już istnieje)."));
-        }
-        catch (Exception)
-        {
+            if (ex.Message.Contains("23505")) 
+            {
+                 return Result<ProductFormatDto>.Fail(
+                    AppError.Conflict("Nie udało się zaktualizować formatu (prawdopodobnie nazwa już istnieje)."));
+            }
             return Result<ProductFormatDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas aktualizacji formatu produktu."));
         }
     }
@@ -242,9 +208,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var entity = await db.ProductFormats.SingleOrDefaultAsync(x => x.Id == id, ct);
+            var entity = await repository.GetByIdAsync(id, ct);
             if (entity is null)
             {
                 return Result<bool>.Fail(AppError.NotFound($"Format produktu o id={id} nie istnieje."));
@@ -256,7 +220,7 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
             }
 
             entity.IsActive = false;
-            await db.SaveChangesAsync(ct);
+            await repository.UpdateAsync(entity, ct);
             return Result<bool>.Ok(true);
         }
         catch (OperationCanceledException)
@@ -269,4 +233,3 @@ public sealed class ProductFormatService(IDbContextFactory<AppDbContext> dbFacto
         }
     }
 }
-

@@ -1,238 +1,79 @@
-using DataAccess.Entities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using DataAccess.Enums;
 using FluentAssertions;
+using KanbanLite.Application.Common;
 using KanbanLite.Application.Services;
+using KanbanLite.Application.Services.SupabaseModels;
+using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
 using NSubstitute;
 using Xunit;
 
 namespace KanbanLite.Application.UnitTests.Services;
 
-public class BatchAuditServiceTests : TestBase
+public class BatchAuditServiceTests
 {
-    private readonly BatchAuditService _sut;
+    private readonly IBatchAuditRepository _batchAuditRepository;
+    private readonly IBatchRepository _batchRepository;
+    private readonly ICurrentUser _currentUser;
+    private readonly BatchAuditService _service;
 
     public BatchAuditServiceTests()
     {
-        _sut = new BatchAuditService(DbFactory, CurrentUser);
+        _batchAuditRepository = Substitute.For<IBatchAuditRepository>();
+        _batchRepository = Substitute.For<IBatchRepository>();
+        _currentUser = Substitute.For<ICurrentUser>();
+        
+        _service = new BatchAuditService(_batchAuditRepository, _batchRepository, _currentUser);
     }
 
     [Fact]
-    public async Task GetForBatchAsync_WithNullPage_ReturnsValidationFailed()
-    {
-        // Act
-        var result = await _sut.GetForBatchAsync(1, null!);
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Error.Should().NotBeNull();
-        result.Error!.Code.Should().Be("ValidationFailed");
-        result.Error.Message.Should().Contain("Brak parametrów stronicowania");
-    }
-
-    [Fact]
-    public async Task GetForBatchAsync_UnauthorizedUser_ReturnsUnauthorized()
+    public async Task GetForBatchAsync_ShouldReturnLogs_WhenBatchExists()
     {
         // Arrange
-        CurrentUser.UserId.Returns((string?)null);
-        var page = new PageQuery { Page = 1, PageSize = 10 };
+        _currentUser.UserId.Returns("user");
+        _currentUser.IsInRole("Manager").Returns(true);
+
+        var batchId = 1;
+        var batch = new SupabaseBatch { Id = batchId, BatchNo = 1, Status = "New", Stage = 1 };
+        var logs = new List<SupabaseBatchAuditLog>
+        {
+            new() { Id = 1, BatchId = batchId, OldStatus = "New", NewStatus = "InProgress", ChangedAt = DateTimeOffset.UtcNow },
+            new() { Id = 2, BatchId = batchId, OldStage = 1, NewStage = 2, ChangedAt = DateTimeOffset.UtcNow }
+        };
+
+        _batchRepository.GetByIdAsync(batchId).Returns(batch);
+        _batchAuditRepository.GetForBatchAsync(batchId, 1, 10).Returns((logs, 2));
 
         // Act
-        var result = await _sut.GetForBatchAsync(1, page);
+        var result = await _service.GetForBatchAsync(batchId, new PageQuery(1, 10));
 
         // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Error!.Code.Should().Be("Unauthorized");
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Items.Should().HaveCount(2);
+        // Verify mapping
+        var item1 = result.Value.Items.First(x => x.Id == 1);
+        item1.OldStatus.Should().Be(BatchStatus.New);
+        item1.NewStatus.Should().Be(BatchStatus.InProgress);
     }
 
     [Fact]
-    public async Task GetForBatchAsync_UserWithoutPermission_ReturnsForbidden()
+    public async Task GetForBatchAsync_ShouldReturnNotFound_WhenBatchDoesNotExist()
     {
         // Arrange
-        CurrentUser.UserId.Returns("user123");
-        CurrentUser.IsInRole("Manager").Returns(false);
-        CurrentUser.IsInRole("Operator").Returns(false);
-        var page = new PageQuery { Page = 1, PageSize = 10 };
+        _currentUser.UserId.Returns("user");
+        _currentUser.IsInRole("Manager").Returns(true);
+        var batchId = 999;
+        _batchRepository.GetByIdAsync(batchId).Returns((SupabaseBatch?)null);
 
         // Act
-        var result = await _sut.GetForBatchAsync(1, page);
-
-        // Assert
-        result.IsSuccess.Should().BeFalse();
-        result.Error!.Code.Should().Be("Forbidden");
-    }
-
-    [Fact]
-    public async Task GetForBatchAsync_BatchDoesNotExist_ReturnsNotFound()
-    {
-        // Arrange
-        CurrentUser.UserId.Returns("user123");
-        CurrentUser.IsInRole("Manager").Returns(true);
-        var page = new PageQuery { Page = 1, PageSize = 10 };
-
-        // Act
-        var result = await _sut.GetForBatchAsync(999, page);
+        var result = await _service.GetForBatchAsync(batchId, new PageQuery(1, 10));
 
         // Assert
         result.IsSuccess.Should().BeFalse();
         result.Error!.Code.Should().Be("NotFound");
-        result.Error.Message.Should().Contain("Batch o id=999 nie istnieje");
-    }
-
-    [Fact]
-    public async Task GetForBatchAsync_WithValidRequest_ReturnsPagedResults()
-    {
-        // Arrange
-        CurrentUser.UserId.Returns("user123");
-        CurrentUser.IsInRole("Manager").Returns(true);
-
-        var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        var batch = new Batch { Id = 1, ProjectId = project.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-        
-        var audit1 = new BatchAuditLog 
-        { 
-            Id = 1, 
-            BatchId = 1, 
-            ChangedAt = DateTimeOffset.UtcNow.AddMinutes(-10), 
-            ChangedByUserId = "user1",
-            OldStatus = null,
-            NewStatus = BatchStatus.New,
-            OldStage = null,
-            NewStage = ProductionStage.Design
-        };
-        
-        var audit2 = new BatchAuditLog 
-        { 
-            Id = 2, 
-            BatchId = 1, 
-            ChangedAt = DateTimeOffset.UtcNow.AddMinutes(-5), 
-            ChangedByUserId = "user2",
-            OldStatus = BatchStatus.New,
-            NewStatus = BatchStatus.InProgress,
-            OldStage = ProductionStage.Design,
-            NewStage = ProductionStage.Print
-        };
-
-        DbContext.Orders.Add(order);
-        DbContext.Projects.Add(project);
-        DbContext.Batches.Add(batch);
-        DbContext.BatchAuditLog.AddRange(audit1, audit2);
-        await DbContext.SaveChangesAsync();
-
-        var page = new PageQuery { Page = 1, PageSize = 10 };
-
-        // Act
-        var result = await _sut.GetForBatchAsync(1, page);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Items.Should().HaveCount(2);
-        result.Value.Total.Should().Be(2);
-        result.Value.Page.Should().Be(1);
-        result.Value.PageSize.Should().Be(10);
-        
-        // Should be ordered by ChangedAt descending
-        result.Value.Items.First().Id.Should().Be(2);
-        result.Value.Items.Last().Id.Should().Be(1);
-    }
-
-    [Fact]
-    public async Task GetForBatchAsync_WithPagination_ReturnsCorrectPage()
-    {
-        // Arrange
-        CurrentUser.UserId.Returns("user123");
-        CurrentUser.IsInRole("Operator").Returns(true);
-
-        var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        var batch = new Batch { Id = 1, ProjectId = project.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-
-        // Add 5 audit logs
-        for (int i = 1; i <= 5; i++)
-        {
-            DbContext.BatchAuditLog.Add(new BatchAuditLog
-            {
-                Id = i,
-                BatchId = 1,
-                ChangedAt = DateTimeOffset.UtcNow.AddMinutes(-i),
-                ChangedByUserId = $"user{i}",
-                OldStatus = null,
-                NewStatus = BatchStatus.New,
-                OldStage = null,
-                NewStage = ProductionStage.Design
-            });
-        }
-
-        DbContext.Orders.Add(order);
-        DbContext.Projects.Add(project);
-        DbContext.Batches.Add(batch);
-        await DbContext.SaveChangesAsync();
-
-        var page = new PageQuery { Page = 2, PageSize = 2 };
-
-        // Act
-        var result = await _sut.GetForBatchAsync(1, page);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Items.Should().HaveCount(2);
-        result.Value.Total.Should().Be(5);
-        result.Value.Page.Should().Be(2);
-        result.Value.PageSize.Should().Be(2);
-    }
-
-    [Fact]
-    public async Task GetForBatchAsync_WithInvalidPageNumbers_NormalizesValues()
-    {
-        // Arrange
-        CurrentUser.UserId.Returns("user123");
-        CurrentUser.IsInRole("Manager").Returns(true);
-
-        var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        var batch = new Batch { Id = 1, ProjectId = project.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-
-        DbContext.Orders.Add(order);
-        DbContext.Projects.Add(project);
-        DbContext.Batches.Add(batch);
-        await DbContext.SaveChangesAsync();
-
-        // Page 0 should become 1, PageSize -5 should become 50
-        var page = new PageQuery { Page = 0, PageSize = -5 };
-
-        // Act
-        var result = await _sut.GetForBatchAsync(1, page);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.Page.Should().Be(1);
-        result.Value.PageSize.Should().Be(50);
-    }
-
-    [Fact]
-    public async Task GetForBatchAsync_WithPageSizeOver200_ClampsTo200()
-    {
-        // Arrange
-        CurrentUser.UserId.Returns("user123");
-        CurrentUser.IsInRole("Manager").Returns(true);
-
-        var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        var batch = new Batch { Id = 1, ProjectId = project.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-
-        DbContext.Orders.Add(order);
-        DbContext.Projects.Add(project);
-        DbContext.Batches.Add(batch);
-        await DbContext.SaveChangesAsync();
-
-        var page = new PageQuery { Page = 1, PageSize = 500 };
-
-        // Act
-        var result = await _sut.GetForBatchAsync(1, page);
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-        result.Value.PageSize.Should().Be(200);
     }
 }

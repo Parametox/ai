@@ -23,7 +23,7 @@ public class AuthorizationTests : E2ETestBase
 
         // Assert - Powinien zobaczyć błąd lub być przekierowany
         var currentUrl = Page.Url;
-        var hasAccessDenied = currentUrl.Contains("login") || 
+        var hasAccessDenied = currentUrl.Contains("login") ||
                               currentUrl.Contains("access-denied") ||
                               currentUrl.Contains("forbidden");
 
@@ -32,7 +32,7 @@ public class AuthorizationTests : E2ETestBase
         var dashboardHeading = Page.GetByRole(AriaRole.Heading, new() { Name = "Panel Managera" });
         var isVisible = await dashboardHeading.IsVisibleAsync();
 
-        Assert.True(hasAccessDenied || !isVisible, 
+        Assert.True(hasAccessDenied || !isVisible,
             "Operator nie powinien mieć dostępu do Dashboard Managera");
     }
 
@@ -49,8 +49,8 @@ public class AuthorizationTests : E2ETestBase
         // Assert
         var createOrderForm = Page.GetByTestId("create-order-form");
         var isVisible = await createOrderForm.IsVisibleAsync();
-        
-        Assert.False(isVisible, 
+
+        Assert.False(isVisible,
             "Operator nie powinien mieć dostępu do formularza tworzenia zlecenia");
     }
 

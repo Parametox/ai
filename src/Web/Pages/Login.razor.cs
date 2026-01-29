@@ -1,13 +1,16 @@
 using KanbanLite.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.JSInterop;
+using System.Text.Json;
 
 namespace KanbanLite.Web.Pages;
 
 public partial class Login
 {
     [Inject] private NavigationManager Navigation { get; set; } = null!;
-    [Inject] private IAuthService AuthService { get; set; } = null!;
+    [Inject] private IJSRuntime JS { get; set; } = null!;
+    [Inject] private ISessionService SessionService { get; set; } = null!;
 
     private bool _hasError;
     private bool _isLoading;
@@ -31,12 +34,16 @@ public partial class Login
 
         try
         {
-            var result = await AuthService.LoginAsync(_loginModel.Username, _loginModel.Password);
-            
-            if (!string.IsNullOrEmpty(result))
+            // Wywołanie Cookie Bridge API przez JS Interop
+            var result = await JS.InvokeAsync<JsLoginResult>("auth.login", _loginModel.Username, _loginModel.Password);
+
+            if (result.Success && result.Data != null)
             {
-                // Przekierowanie na kanban
-                Navigation.NavigateTo(result, forceLoad: false);
+                // Deserializuj odpowiedź i ustaw SessionService
+                SessionService.SetSession(result.Data.UserId, result.Data.Username, result.Data.Roles);
+
+                // forceLoad: true wymusza przeładowanie strony i poprawne wczytanie ciasteczka
+                Navigation.NavigateTo("/kanban", forceLoad: true);
             }
             else
             {
@@ -65,4 +72,13 @@ public partial class Login
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
     }
+
+    private class JsLoginResult
+    {
+        public bool Success { get; set; }
+        public string? Error { get; set; }
+        public LoginResponse? Data { get; set; }
+    }
+
+    private record LoginResponse(string UserId, string Username, List<string> Roles);
 }

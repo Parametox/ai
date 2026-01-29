@@ -3,6 +3,7 @@ using DataAccess.Identity;
 using DataAccess.Repositories;
 using KanbanLite.Application;
 using KanbanLite.Application.Security;
+using KanbanLite.Application.Services;
 using KanbanLite.Web;
 using KanbanLite.Web.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 using System.Net;
 
@@ -32,17 +34,36 @@ builder.Services.AddMudServices();
 // Supabase
 var supabaseUrl = builder.Configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase Url not found.");
 var supabaseKey = builder.Configuration["Supabase:Key"] ?? throw new InvalidOperationException("Supabase Key not found.");
-var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+// Wyłączamy AutoConnectRealtime w środowisku Production/CI, aby uniknąć problemów z autoryzacją WebSocket
+var isDevelopment = builder.Environment.IsDevelopment();
+var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = isDevelopment };
 builder.Services.AddScoped<Supabase.Client>(_ => new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions));
+builder.Services.AddScoped<ISupabaseClientAccessor>(sp => new SupabaseClientAccessor(sp.GetRequiredService<Supabase.Client>()));
 
 // DataAccess - AppDbContext z DbContextFactory dla Blazor Server
-var connectionString = builder.Configuration.GetConnectionString("KanbanConnectionString") ?? Environment.GetEnvironmentVariable("KANBANLITE_CONNECTION_STRING")
-    ?? throw new InvalidOperationException("Connection string 'KanbanConnectionString' not found.");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 // Używamy DbContextFactory dla Blazor Server - rozwiązuje problem disposed context
 // AddDbContextFactory automatycznie rejestruje też AppDbContext jako scoped dla Identity
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
-    options.UseNpgsql(connectionString), ServiceLifetime.Scoped);
+{
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        npgsqlOptions.CommandTimeout(60); // 60 sekund timeout dla komend
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null);
+    });
+    
+    // Włączenie szczegółowych błędów w development
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
+}, ServiceLifetime.Scoped);
 
 // Repository Pattern - UnitOfWork
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -84,14 +105,20 @@ builder.Services.AddAuthorization();
 // Blazor Server Authentication State Provider
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<ApplicationUser>>();
 
-// Session Service - Singleton dla zarządzania sesją użytkownika
-builder.Services.AddSingleton<ISessionService, SessionService>();
+// Session Service - Scoped dla zarządzania sesją użytkownika (per circuit)
+builder.Services.AddScoped<ISessionService, SessionService>();
+
+// HttpClient dla Blazor components (Cookie Bridge API calls)
+builder.Services.AddScoped(sp => new HttpClient
+{
+    BaseAddress = new Uri(sp.GetRequiredService<NavigationManager>().BaseUri)
+});
 
 // Application layer
 builder.Services.AddHttpContextAccessor();
 // ICurrentUser oparty na SessionService zamiast ClaimsPrincipal
 builder.Services.AddScoped<ICurrentUser, SessionCurrentUser>();
-builder.Services.AddKanbanLiteApplication();
+builder.Services.AddKanbanLiteApplication(builder.Configuration);
 
 // Auth Service - używa UserManager + SessionService
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -109,10 +136,21 @@ if (!app.Environment.IsDevelopment())
 }
 
 // Inicjalizacja Supabase
+// Obsługa błędu inicjalizacji - aplikacja może działać bez Realtime w środowisku CI/CD
 using (var scope = app.Services.CreateScope())
 {
-    var supabase = scope.ServiceProvider.GetRequiredService<Supabase.Client>();
-    await supabase.InitializeAsync();
+    try
+    {
+        var supabase = scope.ServiceProvider.GetRequiredService<Supabase.Client>();
+        await supabase.InitializeAsync();
+    }
+    catch (Exception ex)
+    {
+        // W środowisku Production/CI logujemy błąd, ale nie przerywamy uruchomienia aplikacji
+        // Realtime nie jest krytyczne dla podstawowej funkcjonalności aplikacji
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Failed to initialize Supabase Realtime. Application will continue without Realtime support.");
+    }
 }
 
 app.UseHttpsRedirection();
@@ -126,6 +164,9 @@ app.UseAuthorization();
 
 // Mapowanie kontrolerów (AuthController dla Cookie Bridge)
 app.MapControllers();
+
+// Health check endpoint dla Docker/Kubernetes
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 // Wyłączenie anti-forgery dla Razor Components - wszystko działa przez SignalR, CSRF nie dotyczy
 app.MapRazorComponents<App>()

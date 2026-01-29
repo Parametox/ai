@@ -1,7 +1,7 @@
-using DataAccess.Entities;
 using DataAccess.Enums;
 using FluentAssertions;
 using KanbanLite.Application.Services;
+using KanbanLite.Application.Services.SupabaseModels;
 using KanbanLite.Contracts;
 using NSubstitute;
 using Xunit;
@@ -11,10 +11,12 @@ namespace KanbanLite.Application.UnitTests.Services;
 public class BatchServiceTests : TestBase
 {
     private readonly BatchService _sut;
+    private readonly IBatchRepository _batchRepository;
 
     public BatchServiceTests()
     {
-        _sut = new BatchService(DbFactory, CurrentUser);
+        _batchRepository = Substitute.For<IBatchRepository>();
+        _sut = new BatchService(_batchRepository, CurrentUser);
     }
 
     [Fact]
@@ -50,17 +52,15 @@ public class BatchServiceTests : TestBase
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
 
-        // use long ids
-        var order = new Order { Id = 1, OrderNumber = "ORD-1", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project = new Project { Id = 1, OrderId = order.Id, ProjectNumber = "PRJ-1", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        
-        var batch1 = new Batch { Id = 1, ProjectId = project.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-        var batch2 = new Batch { Id = 2, ProjectId = project.Id, BatchNo = 2, Status = BatchStatus.InProgress, Stage = ProductionStage.Print, UpdatedAt = DateTimeOffset.UtcNow };
+        var supaOrder = new SupabaseOrder { Id = 1, OrderNumber = "ORD-1", DueDate = DateTime.Today };
+        var supaProject = new SupabaseProject { Id = 1, OrderId = 1, Order = supaOrder, ProjectNumber = "PRJ-1", IsCompleted = false };
+        var supaBatch = new SupabaseBatch { Id = 1, ProjectId = 1, Project = supaProject, BatchNo = 1, Status = BatchStatus.New.ToString(), Stage = (short)ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
 
-        DbContext.Orders.Add(order);
-        DbContext.Projects.Add(project);
-        DbContext.Batches.AddRange(batch1, batch2);
-        await DbContext.SaveChangesAsync();
+        _batchRepository.GetBatchesAsync(Arg.Any<KanbanQuery>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(([supaBatch], 1));
+            
+        _batchRepository.GetInProgressCountAsync(Arg.Any<CancellationToken>())
+            .Returns(0);
 
         // Act - Filter by Status 'New'
         var result = await _sut.GetKanbanAsync(new KanbanQuery { Status = BatchStatus.New });
@@ -68,28 +68,22 @@ public class BatchServiceTests : TestBase
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.Value.Items.Should().HaveCount(1);
-        result.Value.Items.First().BatchId.Should().Be(batch1.Id);
+        result.Value.Items.First().BatchId.Should().Be(1);
     }
 
     [Fact]
-    public async Task GetKanbanAsync_WithSearchQuery_FiltersResults()
+    public async Task GetKanbanAsync_WithSearchQuery_CallsRepositoryCorrectly()
     {
         // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
+        
+        var supaOrder = new SupabaseOrder { Id = 10, OrderNumber = "ALPHA", DueDate = DateTime.Today };
+        var supaProject = new SupabaseProject { Id = 10, OrderId = 10, Order = supaOrder, ProjectNumber = "PRJ-ALPHA", IsCompleted = false };
+        var supaBatch = new SupabaseBatch { Id = 10, ProjectId = 10, Project = supaProject, BatchNo = 1, Status = BatchStatus.New.ToString(), Stage = (short)ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
 
-        var order1 = new Order { Id = 10, OrderNumber = "ALPHA", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project1 = new Project { Id = 10, OrderId = order1.Id, ProjectNumber = "PRJ-ALPHA", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        var batch1 = new Batch { Id = 10, ProjectId = project1.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-
-        var order2 = new Order { Id = 20, OrderNumber = "BETA", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project2 = new Project { Id = 20, OrderId = order2.Id, ProjectNumber = "PRJ-BETA", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
-        var batch2 = new Batch { Id = 20, ProjectId = project2.Id, BatchNo = 1, Status = BatchStatus.New, Stage = ProductionStage.Design, UpdatedAt = DateTimeOffset.UtcNow };
-
-        DbContext.Orders.AddRange(order1, order2);
-        DbContext.Projects.AddRange(project1, project2);
-        DbContext.Batches.AddRange(batch1, batch2);
-        await DbContext.SaveChangesAsync();
+        _batchRepository.GetBatchesAsync(Arg.Is<KanbanQuery>(q => q.Q == "ALPHA"), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(([supaBatch], 1));
 
         // Act
         var result = await _sut.GetKanbanAsync(new KanbanQuery { Q = "ALPHA" });
@@ -101,22 +95,21 @@ public class BatchServiceTests : TestBase
     }
 
     [Fact]
-    public async Task GetKanbanAsync_SortByUpdatedAtDesc_ReturnsSortedResults()
+    public async Task GetKanbanAsync_SortByUpdatedAtDesc_CallsRepositoryCorrectly()
     {
-         // Arrange
+        // Arrange
         CurrentUser.UserId.Returns("user");
         CurrentUser.IsInRole("Manager").Returns(true);
-
-        var order = new Order { Id = 100, OrderNumber = "ORD", DueDate = DateOnly.FromDateTime(DateTime.Today), CreatedAt = DateTimeOffset.UtcNow };
-        var project = new Project { Id = 100, OrderId = order.Id, ProjectNumber = "PRJ", IsCompleted = false, CreatedAt = DateTimeOffset.UtcNow };
         
-        var batchOld = new Batch { Id = 101, ProjectId = project.Id, BatchNo = 1, UpdatedAt = DateTimeOffset.UtcNow.AddHours(-2) };
-        var batchNew = new Batch { Id = 102, ProjectId = project.Id, BatchNo = 2, UpdatedAt = DateTimeOffset.UtcNow };
-
-        DbContext.Orders.Add(order);
-        DbContext.Projects.Add(project);
-        DbContext.Batches.AddRange(batchOld, batchNew);
-        await DbContext.SaveChangesAsync();
+        var supaBatchOld = new SupabaseBatch { Id = 101, Status = "New", UpdatedAt = DateTimeOffset.UtcNow.AddHours(-2) };
+        var supaBatchNew = new SupabaseBatch { Id = 102, Status = "New", UpdatedAt = DateTimeOffset.UtcNow };
+        
+        // Note: The repository handles sorting, so the mock should return sorted if we wanted to test logic, 
+        // but here we are testing if the Service passes the parameters correctly, or if the Mapping handles the list.
+        // Since we mock the repository, we can't test if it sorts. We test if Service deals with what Repository returns.
+        
+        _batchRepository.GetBatchesAsync(Arg.Is<KanbanQuery>(q => q.Sort == KanbanSort.UpdatedAtDesc), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(([supaBatchNew, supaBatchOld], 2));
 
         // Act
         var result = await _sut.GetKanbanAsync(new KanbanQuery { Sort = KanbanSort.UpdatedAtDesc });
@@ -124,7 +117,8 @@ public class BatchServiceTests : TestBase
         // Assert
         result.IsSuccess.Should().BeTrue();
         var items = result.Value.Items.ToList();
-        items[0].BatchId.Should().Be(batchNew.Id);
-        items[1].BatchId.Should().Be(batchOld.Id);
+        items.Should().HaveCount(2);
+        items[0].BatchId.Should().Be(102);
+        items[1].BatchId.Should().Be(101);
     }
 }

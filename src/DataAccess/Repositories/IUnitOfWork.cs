@@ -10,7 +10,7 @@ public interface IUnitOfWork : IDisposable
     IRepository<BatchAuditLog> BatchAuditLogs { get; }
     IRepository<ProductFormat> ProductFormats { get; }
     IRepository<BatchSplitRule> BatchSplitRules { get; }
-    
+
     Task<int> SaveChangesAsync(CancellationToken ct = default);
     Task BeginTransactionAsync(CancellationToken ct = default);
     Task CommitTransactionAsync(CancellationToken ct = default);

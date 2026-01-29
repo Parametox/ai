@@ -23,7 +23,7 @@ public class KanbanWorkflowTests : E2ETestBase
         // Assert
         var kanbanTable = Page.GetByTestId("kanban-table");
         await Expect(kanbanTable).ToBeVisibleAsync();
-        
+
         var tableTitle = Page.GetByTestId("kanban-table-title");
         await Expect(tableTitle).ToContainTextAsync("Lista batchy");
     }
@@ -53,7 +53,7 @@ public class KanbanWorkflowTests : E2ETestBase
         var statusFilter = Page.Locator(".mud-select").Filter(new() { HasText = "Status" }).First;
         await statusFilter.ClickAsync();
         await Page.WaitForTimeoutAsync(300);
-        
+
         var inProgressOption = Page.Locator(".mud-popover-open .mud-list-item").Filter(new() { HasText = "InProgress" });
         if (await inProgressOption.IsVisibleAsync())
         {

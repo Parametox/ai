@@ -63,28 +63,64 @@ public abstract class E2ETestBase : IAsyncLifetime
         await passwordInput.FillAsync(password);
         await loginButton.ClickAsync();
 
-        // Poczekaj na zalogowanie (przekierowanie z /login)
-        await Page.WaitForURLAsync(url => !url.Contains("/login"), new PageWaitForURLOptions
+        // Zmiana strategii oczekiwania dla Blazor Server:
+        // Oczekujemy na URL (sukces) LUB komunikat błędu (porażka logowania).
+        var navigationTask = Page.WaitForURLAsync(url => !url.Contains("/login"), new PageWaitForURLOptions
         {
+            WaitUntil = WaitUntilState.Commit,
             Timeout = TestConfig.Timeouts.NavigationTimeout
         });
-        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        var errorTask = Page.Locator(".alert-error").WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = TestConfig.Timeouts.NavigationTimeout
+        });
+
+        var completedTask = await Task.WhenAny(navigationTask, errorTask);
+
+        if (completedTask == errorTask && errorTask.IsCompletedSuccessfully)
+        {
+            var errorText = await Page.Locator(".alert-error").InnerTextAsync();
+            throw new Exception($"Login failed with UI error: {errorText}. Credentials used: Username='{username}', Password='{password}' \nException:{errorTask.Exception}  \nException:{navigationTask.Exception}");
+        }
+
+        // Jeśli nawigacja wygrała lub nastąpił timeout błędów -> czekaj na nawigację
+        try
+        {
+            await navigationTask;
+        }
+        catch (TimeoutException)
+        {
+            // Ostatnie sprawdzenie błędu przed rzuceniem timeoutu
+            if (await Page.Locator(".alert-error").IsVisibleAsync())
+            {
+                var errorText = await Page.Locator(".alert-error").InnerTextAsync();
+                throw new Exception($"Login failed: {errorText}. Credentials used: Username='{username}', Password='{password}'");
+            }
+            throw new Exception($"Login Timeout. Current URL: {Page.Url}. Ensure the database is seeded with test users. Credentials used: Username='{username}', Password='{password}'");
+        }
+
+        // Pewniejszy sygnał sukcesu: czekaj na element dostępny tylko po zalogowaniu (Wyloguj)
+        await Page.GetByTestId("nav-logout").WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = TestConfig.Timeouts.NavigationTimeout
+        });
     }
 
     /// <summary>
     /// Logowanie jako Manager.
     /// </summary>
-    protected Task LoginAsManagerAsync() => 
+    protected Task LoginAsManagerAsync() =>
         LoginAsync(TestConfig.ManagerUser.Username, TestConfig.ManagerUser.Password);
 
-    /// <summary>
-    /// Logowanie jako Operator.
-    /// </summary>
-    protected Task LoginAsOperatorAsync() => 
+    protected Task LoginAsOperatorAsync() =>
         LoginAsync(TestConfig.OperatorUser.Username, TestConfig.OperatorUser.Password);
 
     /// <summary>
     /// Wylogowanie użytkownika.
+    /// W CI nawigacja po forceLoad może nie wywołać zdarzenia Load – czekamy na Commit lub na formularz logowania.
     /// </summary>
     protected async Task LogoutAsync()
     {
@@ -92,7 +128,20 @@ public abstract class E2ETestBase : IAsyncLifetime
         if (await logoutButton.IsVisibleAsync())
         {
             await logoutButton.ClickAsync();
-            await Page.WaitForURLAsync("**/login**");
+            // Nie czekaj na Load – w Blazor/CI często nie występuje. Wystarczy Commit lub widoczny formularz logowania.
+            var urlOptions = new PageWaitForURLOptions
+            {
+                WaitUntil = WaitUntilState.Commit,
+                Timeout = TestConfig.Timeouts.NavigationTimeout
+            };
+            var loginFormVisible = Page.GetByTestId("login-username").WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = TestConfig.Timeouts.NavigationTimeout
+            });
+            var urlMatches = Page.WaitForURLAsync("**/login**", urlOptions);
+            var completed = await Task.WhenAny(urlMatches, loginFormVisible);
+            await completed;
         }
     }
 
@@ -108,6 +157,6 @@ public abstract class E2ETestBase : IAsyncLifetime
     /// <summary>
     /// Generuje unikalny numer zlecenia dla testów.
     /// </summary>
-    protected static string GenerateOrderNumber() => 
+    protected static string GenerateOrderNumber() =>
         $"E2E-{DateTime.Now:yyyyMMdd-HHmmss}-{Random.Shared.Next(1000, 9999)}";
 }

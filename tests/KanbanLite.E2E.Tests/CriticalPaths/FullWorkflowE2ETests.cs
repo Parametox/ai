@@ -24,7 +24,7 @@ public class FullWorkflowE2ETests : E2ETestBase
         // KROK 1: LOGOWANIE JAKO MANAGER
         // ============================================
         await LoginAsManagerAsync();
-        
+
         // Weryfikacja - Manager widzi Dashboard w nawigacji
         var dashboardLink = Page.GetByTestId("nav-dashboard");
         await Expect(dashboardLink).ToBeVisibleAsync();
@@ -33,7 +33,7 @@ public class FullWorkflowE2ETests : E2ETestBase
         // KROK 2: TWORZENIE NOWEGO ZLECENIA
         // ============================================
         await NavigateToAsync("/manager/orders/create");
-        
+
         var orderNumber = GenerateOrderNumber();
         var quantity = "100"; // Mała ilość = mniej batchy do przeprocesowania
         var dueDate = DateTime.Now.AddDays(14);
@@ -45,12 +45,12 @@ public class FullWorkflowE2ETests : E2ETestBase
         var quantityInput = Page.GetByTestId("order-quantity-input");
         await quantityInput.FillAsync(quantity);
 
-        // Wybierz format produktu
+        // Wybierz format produktu (pierwszy dostępny)
         var formatSelect = Page.GetByTestId("order-format-select");
         await formatSelect.ClickAsync();
-        await Page.WaitForTimeoutAsync(500);
-        var firstFormat = Page.Locator(".mud-popover-open .mud-list-item").First;
-        await firstFormat.ClickAsync();
+        var dropdownOption = Page.Locator(".mud-popover-open .mud-list-item, [role='option']").First;
+        await dropdownOption.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15_000 });
+        await dropdownOption.ClickAsync();
         await Page.WaitForTimeoutAsync(300);
 
         // Ustaw datę realizacji
@@ -90,10 +90,10 @@ public class FullWorkflowE2ETests : E2ETestBase
         // ============================================
         // KROK 4: PRZEPROCESOWANIE BATCHY PRZEZ STATUSY I ETAPY
         // ============================================
-        
+
         // Znajdź pierwszy wiersz z naszym zleceniem
         var batchRow = Page.Locator("tr").Filter(new() { HasText = orderNumber }).First;
-        
+
         if (await batchRow.IsVisibleAsync())
         {
             // Zmień status: New -> InProgress
@@ -140,14 +140,14 @@ public class FullWorkflowE2ETests : E2ETestBase
         // ============================================
         // KROK 5: NAWIGACJA DO PROJEKTU I WYSYŁKA
         // ============================================
-        
+
         // Kliknij w link do projektu
         var projectLink = Page.Locator($"a[href^='/project/']").Filter(new() { HasText = orderNumber }).First;
         if (!await projectLink.IsVisibleAsync())
         {
             projectLink = Page.Locator("a[href^='/project/']").First;
         }
-        
+
         if (await projectLink.IsVisibleAsync())
         {
             await projectLink.ClickAsync();
@@ -155,7 +155,7 @@ public class FullWorkflowE2ETests : E2ETestBase
 
             // Sprawdź czy projekt jest gotowy do wysyłki
             var shipButton = Page.GetByTestId("ship-project-button");
-            
+
             if (await shipButton.IsVisibleAsync())
             {
                 // Kliknij "Wyślij do klienta"
@@ -172,11 +172,11 @@ public class FullWorkflowE2ETests : E2ETestBase
         // ============================================
         // KROK 6: WERYFIKACJA KOŃCOWA
         // ============================================
-        
+
         // Wróć do Kanban i sprawdź czy zlecenie jest widoczne
         await NavigateToAsync("/kanban");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        
+
         var kanbanTableFinal = Page.GetByTestId("kanban-table");
         await Expect(kanbanTableFinal).ToBeVisibleAsync();
     }
@@ -202,7 +202,7 @@ public class FullWorkflowE2ETests : E2ETestBase
         {
             await statusSelect.ClickAsync();
             await Page.WaitForTimeoutAsync(300);
-            
+
             // Zamknij dropdown
             await Page.Keyboard.PressAsync("Escape");
         }

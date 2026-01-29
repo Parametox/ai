@@ -66,6 +66,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
 
             b.HasIndex(x => x.OrderNumber).IsUnique().HasDatabaseName("uq_orders_order_number");
             b.HasIndex(x => x.DueDate).HasDatabaseName("ix_orders_due_date");
+            b.HasIndex(x => x.OrderNumber).HasDatabaseName("ix_orders_order_number_pattern");
 
             b.HasCheckConstraint("ck_orders_quantity_range", "\"quantity\" BETWEEN 1 AND 100000");
 
@@ -90,6 +91,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
 
             b.HasIndex(x => x.ProjectNumber).IsUnique().HasDatabaseName("uq_projects_project_number");
+            b.HasIndex(x => x.IsCompleted).HasDatabaseName("ix_projects_is_completed");
             b.HasIndex(x => x.Id).HasDatabaseName("ix_projects_active").HasFilter("\"is_completed\" = FALSE");
 
             b.HasCheckConstraint(
@@ -135,6 +137,8 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
 
             b.HasIndex(x => new { x.ProjectId, x.BatchNo }).IsUnique().HasDatabaseName("uq_batches_project_batch_no");
             b.HasIndex(x => x.ProjectId).HasDatabaseName("ix_batches_project_id");
+            b.HasIndex(x => new { x.Status, x.Stage, x.ProjectId }).HasDatabaseName("ix_batches_kanban_filter").IncludeProperties(new[] { nameof(Batch.UpdatedAt) });
+            b.HasIndex(x => x.UpdatedAt).HasDatabaseName("ix_batches_updated_at");
             b.HasIndex(x => x.Id).HasDatabaseName("ix_batches_inprogress").HasFilter("\"status\" = 'InProgress'");
 
             b.HasCheckConstraint("ck_batches_quantity_positive", "\"quantity\" > 0");

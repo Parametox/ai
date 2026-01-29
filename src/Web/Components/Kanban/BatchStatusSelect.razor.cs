@@ -20,13 +20,13 @@ public partial class BatchStatusSelect : ComponentBase
         {
             return status != BatchStatus.Done;
         }
-        
+
         // Gdy status to InProgress, ukryj New
         if (CurrentStatus == BatchStatus.InProgress)
         {
             return status == BatchStatus.New;
         }
-        
+
         // Gdy status to New, wszystkie opcje dostępne (walidacja serwisu blokuje nieprawidłowe przejścia)
         return false;
     }

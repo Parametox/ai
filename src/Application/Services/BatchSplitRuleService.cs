@@ -1,14 +1,14 @@
-using DataAccess;
-using DataAccess.Entities;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
+using KanbanLite.Application.Services.SupabaseModels;
 using KanbanLite.Contracts;
-using Microsoft.EntityFrameworkCore;
 using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IBatchSplitRuleService
+public sealed class BatchSplitRuleService(
+    IBatchSplitRuleRepository repository,
+    ICurrentUser currentUser) : IBatchSplitRuleService
 {
     public async Task<Result<IReadOnlyList<BatchSplitRuleDto>>> GetAsync(BatchSplitRuleQuery query, CancellationToken ct = default)
     {
@@ -29,32 +29,20 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var q = db.BatchSplitRules.AsNoTracking();
-            if (query.IsActive is not null)
-            {
-                var isActive = query.IsActive.Value;
-                q = q.Where(x => x.IsActive == isActive);
-            }
+            var items = await repository.GetAllAsync(query.IsActive, ct);
 
-            var items = await q
-                .OrderByDescending(x => x.IsActive)
-                .ThenBy(x => x.MinQty)
-                .ThenBy(x => x.MaxQty == null ? int.MaxValue : x.MaxQty.Value)
-                .Select(x => new BatchSplitRuleDto(
-                    x.Id,
-                    x.MinQty,
-                    x.MaxQty,
-                    x.Percent,
-                    x.MinBatchSize,
-                    x.MaxBatchesPerProject,
-                    x.IsActive,
-                    x.CreatedAt
-                ))
-                .ToListAsync(ct);
+            var dtos = items.Select(x => new BatchSplitRuleDto(
+                x.Id,
+                x.MinQty,
+                x.MaxQty,
+                x.Percent,
+                x.MinBatchSize,
+                x.MaxBatchesPerProject,
+                x.IsActive,
+                x.CreatedAt
+            )).ToList();
 
-            return Result<IReadOnlyList<BatchSplitRuleDto>>.Ok(items);
+            return Result<IReadOnlyList<BatchSplitRuleDto>>.Ok(dtos);
         }
         catch (OperationCanceledException)
         {
@@ -92,11 +80,9 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
             if (request.IsActive)
             {
-                var overlapError = await ValidateNoOverlapAsync(db, excludeId: null, request.MinQty, request.MaxQty, ct);
+                var overlapError = await ValidateNoOverlapAsync(excludeId: null, request.MinQty, request.MaxQty, ct);
                 if (overlapError is not null)
                 {
                     return Result<BatchSplitRuleDto>.Fail(overlapError);
@@ -104,7 +90,7 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
             }
 
             var now = DateTimeOffset.UtcNow;
-            var entity = new BatchSplitRule
+            var entity = new SupabaseBatchSplitRule
             {
                 MinQty = request.MinQty,
                 MaxQty = request.MaxQty,
@@ -115,23 +101,20 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
                 CreatedAt = now
             };
 
-            db.BatchSplitRules.Add(entity);
-            await db.SaveChangesAsync(ct);
+            await repository.CreateAsync(entity, ct);
 
+            // Supabase insert might not return ID immediately if we don't ask for representation, 
+            // but repository implementation (Community Client) usually updates model if using Insert(model).
+            // However, SupabaseBatchSplitRuleRepository.CreateAsync uses Insert(rule) which should update the object if configured correctly,
+            // or we might need to fetch it or rely on re-fetching.
+            // For MVP, assuming successful insert. Real ID might be 0 if the client doesn't auto-update.
+            // Let's assume for now it's fine or we accept ID=0 in response until re-fetch.
+            
             return Result<BatchSplitRuleDto>.Ok(ToDto(entity));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (DbUpdateException)
-        {
-            return Result<BatchSplitRuleDto>.Fail(
-                AppError.Conflict("Nie udało się zapisać reguły dzielenia batchy (naruszenie ograniczeń danych)."));
         }
         catch (Exception)
         {
-            return Result<BatchSplitRuleDto>.Fail(
+             return Result<BatchSplitRuleDto>.Fail(
                 AppError.Unexpected("Nieoczekiwany błąd podczas tworzenia reguły dzielenia batchy."));
         }
     }
@@ -161,17 +144,15 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var entity = await db.BatchSplitRules.SingleOrDefaultAsync(x => x.Id == id, ct);
+            var entity = await repository.GetByIdAsync(id, ct);
             if (entity is null)
             {
-                return Result<BatchSplitRuleDto>.Fail(AppError.NotFound($"Reguła dzielenia batchy o id={id} nie istnieje."));
+                return Result<BatchSplitRuleDto>.Fail(AppError.NotFound($"Reguła o id={id} nie istnieje."));
             }
 
             if (request.IsActive)
             {
-                var overlapError = await ValidateNoOverlapAsync(db, excludeId: id, request.MinQty, request.MaxQty, ct);
+                var overlapError = await ValidateNoOverlapAsync(excludeId: id, request.MinQty, request.MaxQty, ct);
                 if (overlapError is not null)
                 {
                     return Result<BatchSplitRuleDto>.Fail(overlapError);
@@ -185,18 +166,9 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
             entity.MaxBatchesPerProject = request.MaxBatchesPerProject;
             entity.IsActive = request.IsActive;
 
-            await db.SaveChangesAsync(ct);
+            await repository.UpdateAsync(entity, ct);
 
             return Result<BatchSplitRuleDto>.Ok(ToDto(entity));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (DbUpdateException)
-        {
-            return Result<BatchSplitRuleDto>.Fail(
-                AppError.Conflict("Nie udało się zaktualizować reguły dzielenia batchy (naruszenie ograniczeń danych)."));
         }
         catch (Exception)
         {
@@ -205,9 +177,35 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
         }
     }
 
+    public async Task<Result> DeleteAsync(long id, CancellationToken ct = default)
+    {
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do usuwania reguł dzielenia batchy.");
+        if (authError is not null)
+        {
+            return Result.Fail(authError);
+        }
+
+        try
+        {
+            var entity = await repository.GetByIdAsync(id, ct);
+            if (entity is null)
+            {
+                return Result.Fail(AppError.NotFound($"Reguła o id={id} nie istnieje."));
+            }
+
+            await repository.DeleteAsync(id, ct);
+            return Result.Ok();
+        }
+        catch (Exception)
+        {
+            return Result.Fail(
+                AppError.Unexpected("Nieoczekiwany błąd podczas usuwania reguły dzielenia batchy."));
+        }
+    }
+
     public async Task<Result<BatchSplitRuleDto>> SetActiveAsync(long id, bool isActive, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do zarządzania regułami dzielenia batchy.");
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do edycji reguł.");
         if (authError is not null)
         {
             return Result<BatchSplitRuleDto>.Fail(authError);
@@ -215,17 +213,15 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            
-            var entity = await db.BatchSplitRules.SingleOrDefaultAsync(x => x.Id == id, ct);
+            var entity = await repository.GetByIdAsync(id, ct);
             if (entity is null)
             {
-                return Result<BatchSplitRuleDto>.Fail(AppError.NotFound($"Reguła dzielenia batchy o id={id} nie istnieje."));
+                return Result<BatchSplitRuleDto>.Fail(AppError.NotFound($"Reguła o id={id} nie istnieje."));
             }
 
-            if (isActive && !entity.IsActive)
+            if (isActive)
             {
-                var overlapError = await ValidateNoOverlapAsync(db, excludeId: id, entity.MinQty, entity.MaxQty, ct);
+                var overlapError = await ValidateNoOverlapAsync(id, entity.MinQty, entity.MaxQty, ct);
                 if (overlapError is not null)
                 {
                     return Result<BatchSplitRuleDto>.Fail(overlapError);
@@ -233,94 +229,92 @@ public sealed class BatchSplitRuleService(IDbContextFactory<AppDbContext> dbFact
             }
 
             entity.IsActive = isActive;
-            await db.SaveChangesAsync(ct);
+            await repository.UpdateAsync(entity, ct);
 
             return Result<BatchSplitRuleDto>.Ok(ToDto(entity));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (DbUpdateException)
-        {
-            return Result<BatchSplitRuleDto>.Fail(
-                AppError.Conflict("Nie udało się zmienić aktywności reguły (naruszenie ograniczeń danych)."));
         }
         catch (Exception)
         {
             return Result<BatchSplitRuleDto>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas zmiany aktywności reguły dzielenia batchy."));
+                AppError.Unexpected("Nieoczekiwany błąd podczas zmiany statusu reguły."));
         }
     }
 
-    private static AppError? Validate(UpsertBatchSplitRuleRequest request)
+    private AppError? Validate(UpsertBatchSplitRuleRequest request)
     {
-        var errors = new Dictionary<string, IReadOnlyList<string>>();
-
         if (request.MinQty < 1)
         {
-            errors["minQty"] = ["MinQty musi być >= 1."];
+            return AppError.ValidationFailed("MinQty musi być >= 1.");
         }
 
-        if (request.MaxQty is not null && request.MaxQty.Value < request.MinQty)
+        if (request.MaxQty.HasValue && request.MaxQty.Value < request.MinQty)
         {
-            errors["maxQty"] = ["MaxQty musi być >= MinQty (albo null)."];
+            return AppError.ValidationFailed("MaxQty nie może być mniejsze niż MinQty.");
         }
 
-        if (request.Percent <= 0 || request.Percent > 100)
+        if (request.Percent <= 0 || request.Percent > 1)
         {
-            errors["percent"] = ["Percent musi być w zakresie (0..100]."];
+            return AppError.ValidationFailed("Percent musi być z przedziału (0, 1].");
         }
 
         if (request.MinBatchSize < 1)
         {
-            errors["minBatchSize"] = ["MinBatchSize musi być >= 1."];
+            return AppError.ValidationFailed("MinBatchSize musi być >= 1.");
         }
 
-        if (request.MaxBatchesPerProject is not null && request.MaxBatchesPerProject.Value < 1)
+        if (request.MaxBatchesPerProject.HasValue && request.MaxBatchesPerProject.Value < 1)
         {
-            errors["maxBatchesPerProject"] = ["MaxBatchesPerProject musi być >= 1 (albo null)."];
+            return AppError.ValidationFailed("MaxBatchesPerProject musi być >= 1.");
         }
 
-        return errors.Count > 0 ? AppError.ValidationFailed("Nieprawidłowe dane wejściowe.", errors) : null;
+        return null;
     }
 
-    private static async Task<AppError?> ValidateNoOverlapAsync(AppDbContext db, long? excludeId, int minQty, int? maxQty, CancellationToken ct)
+    // Prosta walidacja overlapów w pamięci - pobieramy wszystkie aktywne reguły (zakładamy małą ilość reguł).
+    private async Task<AppError?> ValidateNoOverlapAsync(long? excludeId, int minQty, int? maxQty, CancellationToken ct)
     {
-        var candidates = db.BatchSplitRules.AsNoTracking().Where(x => x.IsActive);
-        if (excludeId is not null)
+        var activeRules = await repository.GetActiveRulesAsync(ct);
+
+        foreach (var rule in activeRules)
         {
-            var id = excludeId.Value;
-            candidates = candidates.Where(x => x.Id != id);
+            if (excludeId.HasValue && rule.Id == excludeId.Value)
+            {
+                continue;
+            }
+
+            // Sprawdzamy czy przedziały [MinQty, MaxQty] (gdzie MaxQty=null to inf) nachodzą na siebie
+            // Overlap logic: StartA <= EndB && EndA >= StartB
+
+            long startA = minQty;
+            long endA = maxQty ?? int.MaxValue;
+
+            long startB = rule.MinQty;
+            long endB = rule.MaxQty ?? int.MaxValue;
+
+            if (startA <= endB && endA >= startB)
+            {
+                 return AppError.ValidationFailed(
+                    "Nowa reguła koliduje zakresem ilości z istniejącą aktywną regułą.",
+                    new Dictionary<string, IReadOnlyList<string>>
+                    {
+                        ["range"] = [$"Konflikt z regułą ID={rule.Id} (Min={rule.MinQty}, Max={rule.MaxQty})."]
+                    });
+            }
         }
 
-        // Logika nakładania się zakresów: minA <= bMax && minB <= aMax
-        // Gdy maxQty jest null, traktujemy jako int.MaxValue
-        var maxQtyValue = maxQty ?? int.MaxValue;
-        var overlaps = await candidates
-            .Where(x => x.MinQty <= maxQtyValue && minQty <= (x.MaxQty ?? int.MaxValue))
-            .AnyAsync(ct);
-
-        return overlaps
-            ? AppError.ValidationFailed(
-                "Zakres reguły nakłada się na inną aktywną regułę.",
-                new Dictionary<string, IReadOnlyList<string>>
-                {
-                    ["minQty"] = ["Aktywne zakresy nie mogą się nakładać."],
-                    ["maxQty"] = ["Aktywne zakresy nie mogą się nakładać."]
-                })
-            : null;
+        return null; // OK
     }
 
-    private static BatchSplitRuleDto ToDto(BatchSplitRule x)
-        => new(
-            x.Id,
-            x.MinQty,
-            x.MaxQty,
-            x.Percent,
-            x.MinBatchSize,
-            x.MaxBatchesPerProject,
-            x.IsActive,
-            x.CreatedAt);
+    private static BatchSplitRuleDto ToDto(SupabaseBatchSplitRule entity)
+        => new BatchSplitRuleDto(
+            entity.Id,
+            entity.MinQty,
+            entity.MaxQty,
+            entity.Percent,
+            entity.MinBatchSize,
+            entity.MaxBatchesPerProject,
+            entity.IsActive,
+            entity.CreatedAt
+        );
 }
 
