@@ -73,9 +73,17 @@ namespace DataAccess.Migrations
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("ix_batches_project_id");
 
+                    b.HasIndex("UpdatedAt")
+                        .HasDatabaseName("ix_batches_updated_at");
+
                     b.HasIndex("ProjectId", "BatchNo")
                         .IsUnique()
                         .HasDatabaseName("uq_batches_project_batch_no");
+
+                    b.HasIndex("Status", "Stage", "ProjectId")
+                        .HasDatabaseName("ix_batches_kanban_filter");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("Status", "Stage", "ProjectId"), new[] { "UpdatedAt" });
 
                     b.ToTable("batches", null, t =>
                         {
@@ -246,7 +254,7 @@ namespace DataAccess.Migrations
 
                     b.HasIndex("OrderNumber")
                         .IsUnique()
-                        .HasDatabaseName("uq_orders_order_number");
+                        .HasDatabaseName("ix_orders_order_number_pattern");
 
                     b.HasIndex("ProductFormatId");
 
@@ -336,6 +344,9 @@ namespace DataAccess.Migrations
                     b.HasIndex("Id")
                         .HasDatabaseName("ix_projects_active")
                         .HasFilter("\"is_completed\" = FALSE");
+
+                    b.HasIndex("IsCompleted")
+                        .HasDatabaseName("ix_projects_is_completed");
 
                     b.HasIndex("OrderId");
 

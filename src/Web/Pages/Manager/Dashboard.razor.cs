@@ -37,18 +37,6 @@ public partial class Dashboard
 
     protected override async Task OnInitializedAsync()
     {
-        if (!SessionService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
-
-        if (!SessionService.IsInRole("Manager"))
-        {
-            Navigation.NavigateTo("/kanban", replace: true);
-            return;
-        }
-
         await LoadDashboardData();
     }
 
@@ -71,6 +59,7 @@ public partial class Dashboard
         catch (Exception ex)
         {
             Snackbar.Add($"Wystąpił błąd: {ex.Message}", Severity.Error);
+            throw;
         }
         finally
         {

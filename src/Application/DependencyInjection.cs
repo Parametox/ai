@@ -39,9 +39,16 @@ public static class DependencyInjection
         services.AddSingleton<IFeatureFlagService>(new FeatureFlagService(featureFlagConfig));
 
         // Register services
+        services.AddScoped<IBatchRepository, SupabaseBatchRepository>();
         services.AddScoped<IBatchService, BatchService>();
+        services.AddScoped<IProjectRepository, SupabaseProjectRepository>();
         services.AddScoped<IProjectService, ProjectService>();
+        services.AddScoped<IOrderRepository, SupabaseOrderRepository>();
+        services.AddScoped<IProductFormatRepository, SupabaseProductFormatRepository>();
+        services.AddScoped<IBatchSplitRuleRepository, SupabaseBatchSplitRuleRepository>();
+        services.AddScoped<IBatchAuditRepository, SupabaseBatchAuditRepository>();
         services.AddScoped<IBatchAuditService, BatchAuditService>();
+        services.AddScoped<IDashboardRepository, SupabaseDashboardRepository>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IProductFormatService, ProductFormatService>();

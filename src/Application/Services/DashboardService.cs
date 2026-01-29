@@ -1,14 +1,14 @@
-using DataAccess;
 using DataAccess.Enums;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
-using Microsoft.EntityFrameworkCore;
 using static KanbanLite.Application.Security.AuthorizationHelper;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class DashboardService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IDashboardService
+public sealed class DashboardService(
+    IDashboardRepository dashboardRepository,
+    ICurrentUser currentUser) : IDashboardService
 {
     public async Task<Result<DashboardDto>> GetAsync(CancellationToken ct = default)
     {
@@ -20,55 +20,17 @@ public sealed class DashboardService(IDbContextFactory<AppDbContext> dbFactory, 
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var statusCounts = await dashboardRepository.GetStatusCountsForActiveProjectsAsync(ct);
+            var stageCounts = await dashboardRepository.GetStageCountsForActiveProjectsAsync(ct);
 
-            // Dashboard operacyjny: liczymy na projektach aktywnych (is_completed=false), żeby nie zawyżać metryk.
-            var activeProjectIds = db.Projects.AsNoTracking().Where(p => !p.IsCompleted).Select(p => p.Id);
-
-            var countsByStatus = Enum.GetValues<BatchStatus>().ToDictionary(x => x, _ => 0);
-            var statusAgg = await db.Batches.AsNoTracking()
-                .Where(b => activeProjectIds.Contains(b.ProjectId))
-                .GroupBy(b => b.Status)
-                .Select(g => new { Status = g.Key, Count = g.Count() })
-                .ToListAsync(ct);
-            foreach (var x in statusAgg)
-            {
-                countsByStatus[x.Status] = x.Count;
-            }
-
-            var countsByStage = Enum.GetValues<ProductionStage>().ToDictionary(x => x, _ => 0);
-            var stageAgg = await db.Batches.AsNoTracking()
-                .Where(b => activeProjectIds.Contains(b.ProjectId))
-                .GroupBy(b => b.Stage)
-                .Select(g => new { Stage = g.Key, Count = g.Count() })
-                .ToListAsync(ct);
-            foreach (var x in stageAgg)
-            {
-                countsByStage[x.Stage] = x.Count;
-            }
+            var countsByStatus = Enum.GetValues<BatchStatus>().ToDictionary(x => x, x => statusCounts.GetValueOrDefault(x.ToString(), 0));
+            var countsByStage = Enum.GetValues<ProductionStage>().ToDictionary(x => x, x => stageCounts.GetValueOrDefault((short)x, 0));
 
             var inProgressCount = countsByStatus.GetValueOrDefault(BatchStatus.InProgress, 0);
             var warnings = CreateSoftLimitWarnings(inProgressCount);
 
-            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-            var urgentThreshold = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(7));
-
-            var urgent = await (
-                from p in db.Projects.AsNoTracking()
-                join o in db.Orders.AsNoTracking() on p.OrderId equals o.Id
-                where !p.IsCompleted
-                where o.DueDate < urgentThreshold && o.DueDate >= today
-                orderby o.DueDate, o.Id
-                select new DashboardUrgentOrderDto(
-                    o.Id,
-                    o.OrderNumber,
-                    o.DueDate,
-                    p.Id,
-                    p.ProjectNumber
-                )
-            )
-            .Take(50)
-            .ToListAsync(ct);
+            var urgentThreshold = DateTime.UtcNow.Date.AddDays(7);
+            var urgent = await dashboardRepository.GetUrgentOrdersAsync(urgentThreshold, ct);
 
             return Result<DashboardDto>.Ok(new DashboardDto(
                 countsByStatus,
@@ -77,13 +39,10 @@ public sealed class DashboardService(IDbContextFactory<AppDbContext> dbFactory, 
                 warnings
             ));
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
+            Console.WriteLine(ex);
             throw;
-        }
-        catch (Exception)
-        {
-            return Result<DashboardDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas pobierania dashboardu."));
         }
     }
 

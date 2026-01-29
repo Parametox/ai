@@ -1,5 +1,6 @@
 using DataAccess;
 using KanbanLite.Application.Security;
+using KanbanLite.Application.Services;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 
@@ -10,6 +11,7 @@ public abstract class TestBase : IDisposable
     protected readonly AppDbContext DbContext;
     protected readonly IDbContextFactory<AppDbContext> DbFactory;
     protected readonly ICurrentUser CurrentUser;
+    protected readonly ISupabaseClientAccessor SupabaseClientAccessor;
 
     protected TestBase()
     {
@@ -26,6 +28,9 @@ public abstract class TestBase : IDisposable
         // but pointing to same InMemory DB.
 
         CurrentUser = Substitute.For<ICurrentUser>();
+        
+        // Mock SupabaseClientAccessor - returns null client, tests need to handle this
+        SupabaseClientAccessor = Substitute.For<ISupabaseClientAccessor>();
     }
 
     public void Dispose()

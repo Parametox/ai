@@ -20,18 +20,6 @@ public partial class CreateOrder
 
     protected override async Task OnInitializedAsync()
     {
-        if (!SessionService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
-
-        if (!SessionService.IsInRole("Manager"))
-        {
-            Navigation.NavigateTo("/kanban", replace: true);
-            return;
-        }
-
         try
         {
             var result = await ProductFormatService.GetActiveLookupAsync();

@@ -52,8 +52,8 @@ public sealed class AuthService : IAuthService
             }
 
             // Hasło jest opcjonalne - jeśli użytkownik ma ustawione hasło, weryfikujemy je
-            // Jeśli nie ma hasła w bazie lub hasło nie zostało podane, pomijamy weryfikację
-            if (!string.IsNullOrEmpty(user.PasswordHash) && !string.IsNullOrWhiteSpace(password))
+            // Jeśli nie ma hasła w bazie, pomijamy weryfikację
+            if (!string.IsNullOrEmpty(user.PasswordHash))
             {
                 var appUser = new ApplicationUser { Id = user.Id, UserName = user.UserName, PasswordHash = user.PasswordHash };
                 var verificationResult = _passwordHasher.VerifyHashedPassword(appUser, user.PasswordHash, password);

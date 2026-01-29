@@ -1,8 +1,10 @@
 @page "/project/{id:long}"
+@attribute [Authorize]
 @layout MainLayout
 @using MudBlazor
 @using KanbanLite.Contracts
 @using DataAccess.Enums
+@using Microsoft.AspNetCore.Authorization
 
 <PageTitle>Projekt @(_project?.ProjectNumber ?? "Ładowanie...")</PageTitle>
 

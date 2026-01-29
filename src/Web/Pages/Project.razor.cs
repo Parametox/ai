@@ -24,12 +24,6 @@ public partial class Project
 
     protected override async Task OnInitializedAsync()
     {
-        if (!SessionService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
-
         await LoadProjectAsync();
         _isManager = SessionService.IsInRole("Manager");
     }

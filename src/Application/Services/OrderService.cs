@@ -1,37 +1,24 @@
-using System.Globalization;
 using AutoMapper;
-using DataAccess;
-using DataAccess.Entities;
-using DataAccess.Enums;
-using DataAccess.Repositories;
 using FluentValidation;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
+using KanbanLite.Application.Services.SupabaseModels;
 using KanbanLite.Contracts;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using static KanbanLite.Application.Security.AuthorizationHelper;
+using DataAccess.Enums;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class OrderService : IOrderService
+public sealed class OrderService(
+    IOrderRepository orderRepository,
+    IProjectRepository projectRepository,
+    IBatchRepository batchRepository,
+    IProductFormatRepository productFormatRepository,
+    IBatchSplitRuleRepository batchSplitRuleRepository,
+    ICurrentUser currentUser,
+    IValidator<CreateOrderRequest> createOrderValidator,
+    IMapper mapper) : IOrderService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
-    private readonly ICurrentUser _currentUser;
-    private readonly IValidator<CreateOrderRequest> _createOrderValidator;
-    private readonly IMapper _mapper;
-
-    public OrderService(
-        IDbContextFactory<AppDbContext> dbFactory,
-        ICurrentUser currentUser,
-        IValidator<CreateOrderRequest> createOrderValidator,
-        IMapper mapper)
-    {
-        _dbFactory = dbFactory;
-        _currentUser = currentUser;
-        _createOrderValidator = createOrderValidator;
-        _mapper = mapper;
-    }
     public async Task<Result<CreateOrderResult>> CreateAsync(CreateOrderRequest request, CancellationToken ct = default)
     {
         if (request is null)
@@ -43,14 +30,13 @@ public sealed class OrderService : IOrderService
                 }));
         }
 
-        var authError = EnsureManagerAuthorized(_currentUser, "Brak uprawnień do tworzenia zleceń.");
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
         if (authError is not null)
         {
             return Result<CreateOrderResult>.Fail(authError);
         }
 
-        // FluentValidation
-        var validationResult = await _createOrderValidator.ValidateAsync(request, ct);
+        var validationResult = await createOrderValidator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             var errors = validationResult.Errors
@@ -67,10 +53,7 @@ public sealed class OrderService : IOrderService
 
         try
         {
-            await using var db = await _dbFactory.CreateDbContextAsync(ct);
-            using var unitOfWork = new UnitOfWork(db);
-
-            var productFormat = await unitOfWork.ProductFormats.SingleOrDefaultAsync(x => x.Id == normalized.ProductFormatId, ct);
+            var productFormat = await productFormatRepository.GetByIdAsync(normalized.ProductFormatId, ct);
             if (productFormat is null)
             {
                 return Result<CreateOrderResult>.Fail(AppError.ValidationFailed(
@@ -85,7 +68,9 @@ public sealed class OrderService : IOrderService
                     new Dictionary<string, IReadOnlyList<string>> { ["productFormatId"] = ["Wybierz aktywny format."] }));
             }
 
-            var splitRule = await FindActiveSplitRuleForQuantityAsync(unitOfWork, normalized.Quantity, ct);
+            var allRules = await batchSplitRuleRepository.GetActiveRulesAsync(ct);
+            var splitRule = FindActiveRule(allRules, normalized.Quantity);
+            
             if (splitRule is null)
             {
                 return Result<CreateOrderResult>.Fail(AppError.ValidationFailed(
@@ -98,290 +83,161 @@ public sealed class OrderService : IOrderService
 
             var now = DateTimeOffset.UtcNow;
 
-            var order = new Order
+            var order = new SupabaseOrder
             {
                 OrderNumber = normalized.OrderNumber,
                 Quantity = normalized.Quantity,
                 ProductFormatId = normalized.ProductFormatId,
-                ProductFormat = productFormat,
-                DueDate = normalized.DueDate,
+                DueDate = normalized.DueDate.ToDateTime(TimeOnly.MinValue),
                 CreatedAt = now
             };
-
-            var project = new Project
+            
+            var createdOrder = await orderRepository.CreateAsync(order, ct);
+            
+            var projectNumber = CreateProjectNumberFromOrderNumber(createdOrder.OrderNumber ?? "");
+            var project = new SupabaseProject
             {
-                Order = order,
-                ProjectNumber = CreateProjectNumberFromOrderNumber(order.OrderNumber),
+                OrderId = createdOrder.Id,
+                ProjectNumber = projectNumber,
                 IsCompleted = false,
                 CreatedAt = now
             };
+            var createdProject = await projectRepository.CreateAsync(project, ct);
 
-            var batches = CreateBatches(project, orderQty: order.Quantity, splitRule, now);
+            var batches = CreateBatches(createdProject.Id, createdOrder.Quantity, splitRule, now);
+            await batchRepository.CreateRangeAsync(batches, ct);
 
-            await unitOfWork.BeginTransactionAsync(ct);
+             var orderDto = new OrderDto(
+                 createdOrder.Id, createdOrder.OrderNumber ?? "", createdOrder.Quantity, createdOrder.ProductFormatId, DateOnly.FromDateTime(createdOrder.DueDate), createdOrder.CreatedAt
+             );
+             var projectDto = new ProjectDto(
+                 createdProject.Id, createdProject.OrderId, createdProject.ProjectNumber ?? "", createdProject.IsCompleted, createdProject.CreatedAt
+             );
+             var batchDtos = batches.Select(b => new BatchDto(
+                 b.Id, b.ProjectId, b.BatchNo, b.Quantity, 
+                 Enum.TryParse<BatchStatus>(b.Status, out var s) ? s : BatchStatus.New,
+                 (ProductionStage)b.Stage,
+                 b.CreatedAt, b.UpdatedAt
+             )).ToList();
 
-            try
-            {
-                unitOfWork.Orders.Add(order);
-                unitOfWork.Projects.Add(project);
-                unitOfWork.Batches.AddRange(batches);
+             return Result<CreateOrderResult>.Ok(new CreateOrderResult(orderDto, projectDto, batchDtos));
 
-                await unitOfWork.SaveChangesAsync(ct);
-                await unitOfWork.CommitTransactionAsync(ct);
-
-                // AutoMapper mappings
-                var orderDto = _mapper.Map<OrderDto>(order);
-                var projectDto = _mapper.Map<ProjectDto>(project);
-                var batchDtos = batches
-                    .OrderBy(b => b.BatchNo)
-                    .Select(b => _mapper.Map<BatchDto>(b))
-                    .ToList();
-
-                return Result<CreateOrderResult>.Ok(new CreateOrderResult(
-                    Order: orderDto,
-                    Project: projectDto,
-                    Batches: batchDtos
-                ));
-            }
-            catch
-            {
-                await unitOfWork.RollbackTransactionAsync(ct);
-                throw;
-            }
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            throw;
-        }
-        catch (DbUpdateException)
-        {
-            return Result<CreateOrderResult>.Fail(
-                AppError.Conflict("Nie udało się utworzyć zlecenia (konflikt lub naruszenie ograniczeń danych)."));
-        }
-        catch (Exception)
-        {
-            return Result<CreateOrderResult>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas tworzenia zlecenia."));
+            return Result<CreateOrderResult>.Fail(AppError.Unexpected($"Nieoczekiwany błąd podczas tworzenia zlecenia: {ex.Message}"));
         }
     }
 
     public async Task<Result<PagedResult<OrderListItemDto>>> GetAsync(OrderQuery query, CancellationToken ct = default)
     {
-        if (query is null)
+        if (query is null) return Result<PagedResult<OrderListItemDto>>.Fail(AppError.ValidationFailed("Query required."));
+        
+        var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
+        if (authError is not null) return Result<PagedResult<OrderListItemDto>>.Fail(authError);
+
+        try 
         {
-            return Result<PagedResult<OrderListItemDto>>.Fail(
-                AppError.ValidationFailed("Brak parametrów zapytania.", new Dictionary<string, IReadOnlyList<string>>
-                {
-                    ["query"] = ["Query jest wymagany."]
-                }));
+             var page = query.Page < 1 ? 1 : query.Page;
+             var pageSize = query.PageSize < 1 ? 50 : (query.PageSize > 200 ? 200 : query.PageSize); 
+
+             var (items, total) = await orderRepository.GetOrdersAsync(query, page, pageSize, ct);
+
+             var mappedItems = items.Select(o => new OrderListItemDto(
+                 o.Id,
+                 o.OrderNumber ?? "",
+                 o.Quantity,
+                 DateOnly.FromDateTime(o.DueDate),
+                 o.ProductFormat?.Name ?? "", 
+                 o.CreatedAt
+             )).ToList();
+
+             return Result<PagedResult<OrderListItemDto>>.Ok(new PagedResult<OrderListItemDto>(mappedItems, page, pageSize, total));
         }
-
-        var authError = EnsureManagerAuthorized(_currentUser, "Brak uprawnień do tworzenia zleceń.");
-        if (authError is not null)
+        catch (Exception ex)
         {
-            return Result<PagedResult<OrderListItemDto>>.Fail(authError);
-        }
-
-        var page = query.Page < 1 ? 1 : query.Page;
-        var pageSize = query.PageSize switch
-        {
-            < 1 => 50,
-            > 200 => 200,
-            _ => query.PageSize
-        };
-
-        var q = string.IsNullOrWhiteSpace(query.Q) ? null : query.Q.Trim();
-
-        try
-        {
-            await using var db = await _dbFactory.CreateDbContextAsync(ct);
-
-            var baseQuery =
-                from o in db.Orders.AsNoTracking()
-                join pf in db.ProductFormats.AsNoTracking() on o.ProductFormatId equals pf.Id
-                select new { o, pf };
-
-            if (query.DueFrom is not null)
-            {
-                var dueFrom = query.DueFrom.Value;
-                baseQuery = baseQuery.Where(x => x.o.DueDate >= dueFrom);
-            }
-
-            if (query.DueTo is not null)
-            {
-                var dueTo = query.DueTo.Value;
-                baseQuery = baseQuery.Where(x => x.o.DueDate <= dueTo);
-            }
-
-            if (q is not null)
-            {
-                baseQuery = baseQuery.Where(x =>
-                    x.o.OrderNumber.Contains(q)
-                    || db.Projects.AsNoTracking().Any(p => p.OrderId == x.o.Id && p.ProjectNumber.Contains(q)));
-            }
-
-            var total = await baseQuery.LongCountAsync(ct);
-
-            var items = await baseQuery
-                .OrderByDescending(x => x.o.CreatedAt)
-                .ThenByDescending(x => x.o.Id)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(x => new OrderListItemDto(
-                    x.o.Id,
-                    x.o.OrderNumber,
-                    x.o.Quantity,
-                    x.o.DueDate,
-                    x.pf.Name,
-                    x.o.CreatedAt
-                ))
-                .ToListAsync(ct);
-
-            return Result<PagedResult<OrderListItemDto>>.Ok(new PagedResult<OrderListItemDto>(
-                items,
-                page,
-                pageSize,
-                total
-            ));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return Result<PagedResult<OrderListItemDto>>.Fail(
-                AppError.Unexpected("Nieoczekiwany błąd podczas pobierania listy zleceń."));
+             return Result<PagedResult<OrderListItemDto>>.Fail(AppError.Unexpected(ex.Message));
         }
     }
-
+    
     public async Task<Result<OrderDetailsDto>> GetByIdAsync(long id, CancellationToken ct = default)
     {
-        var authError = EnsureManagerAuthorized(_currentUser, "Brak uprawnień do tworzenia zleceń.");
-        if (authError is not null)
-        {
-            return Result<OrderDetailsDto>.Fail(authError);
-        }
+         var authError = EnsureManagerAuthorized(currentUser, "Brak uprawnień do tworzenia zleceń.");
+         if (authError is not null) return Result<OrderDetailsDto>.Fail(authError);
+         
+         try
+         {
+             var order = await orderRepository.GetByIdAsync(id, ct);
+             if (order is null) return Result<OrderDetailsDto>.Fail(AppError.NotFound($"Zlecenie o id={id} nie istnieje."));
 
-        try
-        {
-            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+             var project = await projectRepository.GetByOrderIdAsync(id, ct);
+             if (project is null) return Result<OrderDetailsDto>.Fail(AppError.Unexpected("Niespójne dane: zlecenie nie ma powiązanego projektu."));
 
-            var header = await (
-                from o in db.Orders.AsNoTracking()
-                join pf in db.ProductFormats.AsNoTracking() on o.ProductFormatId equals pf.Id
-                where o.Id == id
-                select new
-                {
-                    o.Id,
-                    o.OrderNumber,
-                    o.Quantity,
-                    o.DueDate,
-                    ProductFormatId = pf.Id,
-                    ProductFormatName = pf.Name
-                }
-            ).SingleOrDefaultAsync(ct);
+             var projectSummary = new OrderProjectSummaryDto(project.Id, project.ProjectNumber ?? "", project.IsCompleted);
 
-            if (header is null)
-            {
-                return Result<OrderDetailsDto>.Fail(AppError.NotFound($"Zlecenie o id={id} nie istnieje."));
-            }
+             var dto = new OrderDetailsDto(
+                order.Id,
+                order.OrderNumber ?? "",
+                order.Quantity,
+                DateOnly.FromDateTime(order.DueDate),
+                new ProductFormatLookupDto(order.ProductFormatId, order.ProductFormat?.Name ?? ""),
+                projectSummary
+            );
 
-            var project = await db.Projects.AsNoTracking()
-                .Where(p => p.OrderId == id)
-                .OrderBy(p => p.Id)
-                .Select(p => new OrderProjectSummaryDto(p.Id, p.ProjectNumber, p.IsCompleted))
-                .FirstOrDefaultAsync(ct);
-
-            if (project is null)
-            {
-                return Result<OrderDetailsDto>.Fail(AppError.Unexpected("Niespójne dane: zlecenie nie ma powiązanego projektu."));
-            }
-
-            return Result<OrderDetailsDto>.Ok(new OrderDetailsDto(
-                header.Id,
-                header.OrderNumber,
-                header.Quantity,
-                header.DueDate,
-                new ProductFormatLookupDto(header.ProductFormatId, header.ProductFormatName),
-                project
-            ));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return Result<OrderDetailsDto>.Fail(AppError.Unexpected("Nieoczekiwany błąd podczas pobierania szczegółów zlecenia."));
-        }
+            return Result<OrderDetailsDto>.Ok(dto);
+         }
+         catch (Exception ex)
+         {
+             return Result<OrderDetailsDto>.Fail(AppError.Unexpected(ex.Message));
+         }
     }
 
     private static CreateOrderRequest Normalize(CreateOrderRequest request)
-        => request with
-        {
-            OrderNumber = request.OrderNumber.Trim()
-        };
+        => request with { OrderNumber = request.OrderNumber.Trim() };
 
-    private static async Task<BatchSplitRule?> FindActiveSplitRuleForQuantityAsync(IUnitOfWork unitOfWork, int quantity, CancellationToken ct)
+    private static SupabaseBatchSplitRule? FindActiveRule(IReadOnlyList<SupabaseBatchSplitRule> rules, int quantity)
     {
-        // Zakładamy brak overlapów aktywnych (walidowane w BatchSplitRuleService w przyszłości).
-        // Dobieramy najbardziej "szczegółową" regułę: najwyższy MinQty, a przy remisie najniższy MaxQty.
-        var rules = await unitOfWork.BatchSplitRules.QueryNoTracking()
+        return rules
             .Where(r => r.IsActive)
             .Where(r => r.MinQty <= quantity)
             .Where(r => r.MaxQty == null || quantity <= r.MaxQty.Value)
             .OrderByDescending(r => r.MinQty)
             .ThenBy(r => r.MaxQty == null ? int.MaxValue : r.MaxQty.Value)
-            .ToListAsync(ct);
-
-        return rules.FirstOrDefault();
+            .FirstOrDefault();
     }
 
-    private static List<Batch> CreateBatches(Project project, int orderQty, BatchSplitRule splitRule, DateTimeOffset now)
+    private static List<SupabaseBatch> CreateBatches(long projectId, int orderQty, SupabaseBatchSplitRule splitRule, DateTimeOffset now)
     {
-        // Maksymalny rozmiar batcha = Percent * MaxQty (lub MaxQty z reguły, lub orderQty jako fallback)
         var referenceQty = splitRule.MaxQty ?? orderQty;
         var maxBatchSize = (int)Math.Ceiling(referenceQty * (double)splitRule.Percent);
 
-        // MaxBatchSize nie może być mniejszy niż MinBatchSize
         maxBatchSize = Math.Max(maxBatchSize, splitRule.MinBatchSize);
 
-        if (maxBatchSize <= 0)
-        {
-            throw new InvalidOperationException("Wyliczony rozmiar batcha jest nieprawidłowy.");
-        }
+        if (maxBatchSize <= 0) throw new InvalidOperationException("Wyliczony rozmiar batcha jest nieprawidłowy.");
+        if (splitRule.MinBatchSize > maxBatchSize) throw new InvalidOperationException("MinBatchSize nie może być większy niż MaxBatchSize.");
 
-        // Walidacja: MinBatchSize nie może być większy niż MaxBatchSize
-        if (splitRule.MinBatchSize > maxBatchSize)
-        {
-            throw new InvalidOperationException("MinBatchSize nie może być większy niż MaxBatchSize.");
-        }
-
-        var batches = new List<Batch>();
+        var batches = new List<SupabaseBatch>();
         var remaining = orderQty;
         var batchNo = 1;
 
-        // Oblicz liczbę pełnych batchy
         var fullBatches = remaining / maxBatchSize;
         var lastBatchQty = remaining % maxBatchSize;
 
-        // Tworzenie pełnych batchy
         for (int i = 0; i < fullBatches; i++)
         {
-            batches.Add(new Batch
+            batches.Add(new SupabaseBatch
             {
-                Project = project,
+                ProjectId = projectId,
                 BatchNo = batchNo++,
                 Quantity = maxBatchSize,
-                Status = BatchStatus.New,
-                Stage = ProductionStage.Design,
+                Status = BatchStatus.New.ToString(),
+                Stage = (short)ProductionStage.Design,
                 CreatedAt = now,
                 UpdatedAt = now
             });
 
             if (splitRule.MaxBatchesPerProject is not null && batches.Count >= splitRule.MaxBatchesPerProject.Value)
             {
-                // Jeśli osiągnięto limit, resztę dodajemy do ostatniego batcha
                 var totalInBatches = batches.Sum(b => b.Quantity);
                 if (totalInBatches < orderQty)
                 {
@@ -391,52 +247,41 @@ public sealed class OrderService : IOrderService
             }
         }
 
-        // Obsługa ostatniego batcha (reszty)
         if (lastBatchQty > 0 && (splitRule.MaxBatchesPerProject is null || batches.Count < splitRule.MaxBatchesPerProject.Value))
         {
             if (lastBatchQty < splitRule.MinBatchSize && batches.Count > 0)
             {
-                // Jeśli reszta jest mniejsza niż MinBatchSize, dokładamy do poprzedniego batcha
                 batches[^1].Quantity += lastBatchQty;
             }
             else
             {
-                // Reszta jest wystarczająco duża, tworzę nowy batch
-                batches.Add(new Batch
+                batches.Add(new SupabaseBatch
                 {
-                    Project = project,
+                    ProjectId = projectId,
                     BatchNo = batchNo++,
                     Quantity = lastBatchQty,
-                    Status = BatchStatus.New,
-                    Stage = ProductionStage.Design,
+                    Status = BatchStatus.New.ToString(),
+                    Stage = (short)ProductionStage.Design,
                     CreatedAt = now,
                     UpdatedAt = now
                 });
             }
         }
 
-        // Walidacje końcowe
         if (batches.Sum(b => b.Quantity) != orderQty)
-        {
             throw new InvalidOperationException("Suma batchy nie zgadza się z ilością zlecenia.");
-        }
 
         if (batches.Any(b => b.Quantity < splitRule.MinBatchSize))
-        {
             throw new InvalidOperationException("Co najmniej jeden batch ma ilość poniżej MinBatchSize.");
-        }
 
         if (splitRule.MaxBatchesPerProject is not null && batches.Count > splitRule.MaxBatchesPerProject.Value)
-        {
             throw new InvalidOperationException("Liczba batchy przekroczyłaby limit MaxBatchesPerProject.");
-        }
 
         return batches;
     }
 
     private static string CreateProjectNumberFromOrderNumber(string orderNumber)
     {
-        // MVP: prosty mapping ORD-YYYY-XXXX -> PRJ-YYYY-XXXX (zgodne z przykładami w api-plan.md).
         if (orderNumber.StartsWith("ORD-", StringComparison.OrdinalIgnoreCase))
         {
             return "PRJ-" + orderNumber[4..];

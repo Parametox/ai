@@ -26,12 +26,6 @@ public partial class Kanban : ComponentBase, IDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        if (!SessionService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login", replace: true);
-            return;
-        }
-
         await LoadDataAsync();
 
         // Timer odświeżania licznika co 30 sekund

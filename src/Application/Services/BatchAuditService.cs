@@ -1,12 +1,14 @@
-using DataAccess;
+using DataAccess.Enums;
 using KanbanLite.Application.Common;
 using KanbanLite.Application.Security;
 using KanbanLite.Contracts;
-using Microsoft.EntityFrameworkCore;
 
 namespace KanbanLite.Application.Services;
 
-public sealed class BatchAuditService(IDbContextFactory<AppDbContext> dbFactory, ICurrentUser currentUser) : IBatchAuditService
+public sealed class BatchAuditService(
+    IBatchAuditRepository auditRepository,
+    IBatchRepository batchRepository,
+    ICurrentUser currentUser) : IBatchAuditService
 {
     private static readonly string[] AllowedRoles = ["Manager", "Operator"];
 
@@ -40,36 +42,27 @@ public sealed class BatchAuditService(IDbContextFactory<AppDbContext> dbFactory,
 
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var batchExists = await db.Batches.AsNoTracking().AnyAsync(x => x.Id == batchId, ct);
-            if (!batchExists)
+            var batch = await batchRepository.GetByIdAsync(batchId, ct);
+            if (batch is null)
             {
                 return Result<PagedResult<BatchAuditEventDto>>.Fail(AppError.NotFound($"Batch o id={batchId} nie istnieje."));
             }
 
-            var q = db.BatchAuditLog.AsNoTracking().Where(x => x.BatchId == batchId);
-            var total = await q.LongCountAsync(ct);
+            var (items, total) = await auditRepository.GetForBatchAsync(batchId, pageNo, pageSize, ct);
 
-            var items = await q
-                .OrderByDescending(x => x.ChangedAt)
-                .ThenByDescending(x => x.Id)
-                .Skip((pageNo - 1) * pageSize)
-                .Take(pageSize)
-                .Select(x => new BatchAuditEventDto(
-                    x.Id,
-                    x.BatchId,
-                    x.ChangedAt,
-                    x.ChangedByUserId,
-                    x.OldStatus,
-                    x.NewStatus,
-                    x.OldStage,
-                    x.NewStage
-                ))
-                .ToListAsync(ct);
+            var mappedItems = items.Select(x => new BatchAuditEventDto(
+                x.Id,
+                x.BatchId,
+                x.ChangedAt,
+                x.ChangedByUserId ?? "",
+                Enum.TryParse<BatchStatus>(x.OldStatus, out var oldStatus) ? oldStatus : null,
+                Enum.TryParse<BatchStatus>(x.NewStatus, out var newStatus) ? newStatus : null,
+                x.OldStage.HasValue ? (ProductionStage)x.OldStage.Value : null,
+                x.NewStage.HasValue ? (ProductionStage)x.NewStage.Value : null
+            )).ToList();
 
             return Result<PagedResult<BatchAuditEventDto>>.Ok(new PagedResult<BatchAuditEventDto>(
-                items,
+                mappedItems,
                 pageNo,
                 pageSize,
                 total
@@ -101,7 +94,7 @@ public sealed class BatchAuditService(IDbContextFactory<AppDbContext> dbFactory,
             }
         }
 
-        return AppError.Forbidden("Brak uprawnień do podglądu audytu batcha.");
+        return AppError.Forbidden("Brak wymaganych uprawnień (Manager lub Operator).");
     }
 }
 

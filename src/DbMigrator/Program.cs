@@ -18,21 +18,29 @@ var configuration = new ConfigurationBuilder()
 var connectionString = configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-// Inicjalizacja Supabase Client
-var supabaseUrl = configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase Url not found.");
-var supabaseKey = configuration["Supabase:Key"] ?? throw new InvalidOperationException("Supabase Key not found.");
-var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
-var supabase = new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions);
-await supabase.InitializeAsync();
+// Inicjalizacja Supabase Client - zakomentowane, by nie blokowało migracji jeśli websocket nie działa
+// var supabaseUrl = configuration["Supabase:Url"] ?? throw new InvalidOperationException("Supabase Url not found.");
+// var supabaseKey = configuration["Supabase:Key"] ?? throw new InvalidOperationException("Supabase Key not found.");
+// var supabaseOptions = new Supabase.SupabaseOptions { AutoConnectRealtime = true };
+// var supabase = new Supabase.Client(supabaseUrl, supabaseKey, supabaseOptions);
+// await supabase.InitializeAsync();
 
 Console.WriteLine("Applying EF Core migrations...");
 Console.WriteLine($"Connection string: {connectionString}");
 
-var options = new DbContextOptionsBuilder<AppDbContext>()
-    .UseNpgsql(connectionString)
-    .Options;
+try 
+{
+    var options = new DbContextOptionsBuilder<AppDbContext>()
+        .UseNpgsql(connectionString)
+        .Options;
 
-await using var db = new AppDbContext(options);
-await db.Database.MigrateAsync();
+    await using var db = new AppDbContext(options);
+    await db.Database.MigrateAsync();
 
-Console.WriteLine("Migrations applied.");
+    Console.WriteLine("Migrations applied.");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error applying migrations: {ex}");
+    throw;
+}

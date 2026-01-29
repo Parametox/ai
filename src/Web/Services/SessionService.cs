@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 namespace KanbanLite.Web.Services;
 
 public sealed class SessionService : ISessionService
@@ -30,4 +32,30 @@ public sealed class SessionService : ISessionService
 
     public bool IsInRole(string roleName)
         => _roles.Contains(roleName, StringComparer.OrdinalIgnoreCase);
+
+    public void InitializeFromClaims(ClaimsPrincipal principal)
+    {
+        if (principal?.Identity?.IsAuthenticated != true)
+        {
+            return;
+        }
+
+        // Wyciągnij UserId z claimów
+        var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier)
+                          ?? principal.FindFirst("sub");
+        
+        // Wyciągnij Username z claimów
+        var usernameClaim = principal.FindFirst(ClaimTypes.Name)
+                            ?? principal.FindFirst("name");
+
+        // Wyciągnij role z claimów
+        var roleClaims = principal.FindAll(ClaimTypes.Role)
+                                  .Select(c => c.Value)
+                                  .ToList();
+
+        if (userIdClaim != null && usernameClaim != null)
+        {
+            SetSession(userIdClaim.Value, usernameClaim.Value, roleClaims);
+        }
+    }
 }
