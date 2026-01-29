@@ -31,12 +31,13 @@ public class CreateOrderTests : E2ETestBase
         var quantityInput = Page.GetByTestId("order-quantity-input");
         await quantityInput.FillAsync(quantity);
 
-        // Wybierz format produktu (pierwszy dostępny)
+        // Wybierz format produktu (pierwszy dostępny). MudSelect w CI może renderować opcje z opóźnieniem.
         var formatSelect = Page.GetByTestId("order-format-select");
         await formatSelect.ClickAsync();
-        await Page.WaitForTimeoutAsync(300); // Poczekaj na otwarcie dropdown
-        var firstOption = Page.Locator(".mud-popover-open .mud-list-item").First;
-        await firstOption.ClickAsync();
+        // Czekaj na pojawienie się listy (różne wersje MudBlazor: .mud-list-item lub role=option)
+        var dropdownOption = Page.Locator(".mud-popover-open .mud-list-item, [role='option']").First;
+        await dropdownOption.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15_000 });
+        await dropdownOption.ClickAsync();
 
         // Wybierz datę (MudDatePicker)
         // Trying GetByLabel which is more robust for MudBlazor inputs if id/for match

@@ -45,12 +45,12 @@ public class FullWorkflowE2ETests : E2ETestBase
         var quantityInput = Page.GetByTestId("order-quantity-input");
         await quantityInput.FillAsync(quantity);
 
-        // Wybierz format produktu
+        // Wybierz format produktu (pierwszy dostępny)
         var formatSelect = Page.GetByTestId("order-format-select");
         await formatSelect.ClickAsync();
-        await Page.WaitForTimeoutAsync(500);
-        var firstFormat = Page.Locator(".mud-popover-open .mud-list-item").First;
-        await firstFormat.ClickAsync();
+        var dropdownOption = Page.Locator(".mud-popover-open .mud-list-item, [role='option']").First;
+        await dropdownOption.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15_000 });
+        await dropdownOption.ClickAsync();
         await Page.WaitForTimeoutAsync(300);
 
         // Ustaw datę realizacji

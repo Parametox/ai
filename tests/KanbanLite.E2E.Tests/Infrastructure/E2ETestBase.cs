@@ -120,6 +120,7 @@ public abstract class E2ETestBase : IAsyncLifetime
 
     /// <summary>
     /// Wylogowanie użytkownika.
+    /// W CI nawigacja po forceLoad może nie wywołać zdarzenia Load – czekamy na Commit lub na formularz logowania.
     /// </summary>
     protected async Task LogoutAsync()
     {
@@ -127,7 +128,20 @@ public abstract class E2ETestBase : IAsyncLifetime
         if (await logoutButton.IsVisibleAsync())
         {
             await logoutButton.ClickAsync();
-            await Page.WaitForURLAsync("**/login**");
+            // Nie czekaj na Load – w Blazor/CI często nie występuje. Wystarczy Commit lub widoczny formularz logowania.
+            var urlOptions = new PageWaitForURLOptions
+            {
+                WaitUntil = WaitUntilState.Commit,
+                Timeout = TestConfig.Timeouts.NavigationTimeout
+            };
+            var loginFormVisible = Page.GetByTestId("login-username").WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = TestConfig.Timeouts.NavigationTimeout
+            });
+            var urlMatches = Page.WaitForURLAsync("**/login**", urlOptions);
+            var completed = await Task.WhenAny(urlMatches, loginFormVisible);
+            await completed;
         }
     }
 

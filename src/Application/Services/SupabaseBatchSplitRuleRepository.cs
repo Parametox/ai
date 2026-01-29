@@ -11,7 +11,7 @@ public class SupabaseBatchSplitRuleRepository(ISupabaseClientAccessor supabaseAc
     public async Task<IReadOnlyList<SupabaseBatchSplitRule>> GetActiveRulesAsync(CancellationToken ct = default)
     {
         var response = await supabaseClient.From<SupabaseBatchSplitRule>()
-            .Filter("is_active", Operator.Equals, true)
+            .Filter("is_active", Operator.Equals, "true")
             .Get(ct);
         
         return response.Models;
@@ -24,7 +24,7 @@ public class SupabaseBatchSplitRuleRepository(ISupabaseClientAccessor supabaseAc
 
         if (isActive.HasValue)
         {
-            builder = builder.Filter("is_active", Operator.Equals, isActive.Value);
+            builder = builder.Filter("is_active", Operator.Equals, isActive.Value.ToString().ToLower());
         }
 
         builder = builder.Order("is_active", Ordering.Descending)
@@ -37,7 +37,7 @@ public class SupabaseBatchSplitRuleRepository(ISupabaseClientAccessor supabaseAc
     public async Task<SupabaseBatchSplitRule?> GetByIdAsync(long id, CancellationToken ct = default)
     {
          return await supabaseClient.From<SupabaseBatchSplitRule>()
-            .Filter("id", Operator.Equals, id)
+            .Filter("id", Operator.Equals, id.ToString())
             .Single(ct);
     }
 
